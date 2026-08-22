@@ -25,6 +25,8 @@ const { title = site.name, nav = true } = Astro.props;
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
+    <!-- Cloudflare Web Analytics（隐私友好统计：PV/UV/国家/设备，免费，无 Cookie） -->
+    <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "a3c1cd96e7314bcd824487afc74a6a0f"}'></script>
   </head>
   <body class="bg-ink text-white">
     <div class="grain" aria-hidden="true"></div>
