@@ -13,3 +13,6 @@ album/
 .tmp*/
 *.log
 .DS_Store
+
+# AgentTeams 运行时状态（不入库）
+.agent-teams/
