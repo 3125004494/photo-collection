@@ -88,4 +88,17 @@ interface Album {
   theme: string;             // 「北京·跨年」→ 跨年
   featured?: boolean;        // 精选章节标记
 }
+
+---
+
+## 7. 验收清单（Phase 完成后逐项勾验）
+
+- [ ] `npm run sync` 幂等重建；`npm run build` 无错；`npm run preview` 全站可访问
+- [ ] Lighthouse（移动）Performance ≥ 90 / A11y ≥ 95 / Best Practices ≥ 95
+- [ ] 详情页图片传输量较基线（64MB 单尺寸）下降 ≥ 50%
+- [ ] 对比度：正文 ≥ 4.5:1、大字号 ≥ 3:1（text-ash/text-fog 等 token 全覆盖）
+- [ ] prefers-reduced-motion：无 pin、内容完整、无卡死
+- [ ] 键盘路径：Hero → 放映台 → 详情 → 灯箱 → 返回，全程焦点环可见
+- [ ] impeccable detect 0 发现；hallmark slop 门（references/slop-test.md）核对通过
+- [ ] 每个 Phase 用视觉模型复核截图，偏差及时修复后才提交
 ```

@@ -16,3 +16,6 @@ album/
 
 # AgentTeams 运行时状态（不入库）
 .agent-teams/
+
+# dsh-vision-router 会话运行时目录（不入库）
+.dsh-vision-router/

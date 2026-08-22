@@ -24,6 +24,7 @@ html, body {
   color: #fff;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip; /* 横向溢出兜底：tooltip/漂移动画不撑开文档宽度（clip 保留纵向滚动） */
 }
 
 /* 编辑式大标题：宋体衬线 + 紧凑字距（标题唯一指定字体） */
@@ -160,34 +161,69 @@ html, body {
   margin-inline: 0.35rem;
 }
 
-/* 时间刻度：低对比点阵，当前影集高亮 */
+/* 时间刻度：低对比点阵，当前影集高亮（16px 悬停热区 + 4px 视觉点 ::before） */
 .scale-dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.scale-dot::before {
+  content: "";
   width: 4px;
   height: 4px;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.22);
   transition: background-color 0.3s ease, transform 0.3s ease;
 }
-.scale-dot.is-active {
+.scale-dot.is-active::before {
   background: #fff;
   transform: scale(1.6);
 }
+/* 年份刻度 hover 提示：组名 tooltip（Phase 3 索引层） */
+.scale-tip {
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  white-space: nowrap;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.375rem;
+  background: rgba(11, 11, 10, 0.9);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.scale-dot:hover .scale-tip,
+.scale-dot:focus-within .scale-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
 
-/* ===== 详情页图片流（审查 v2：去之字形，横图转场 / 竖图停顿）===== */
+/* ===== 详情页图片流（Phase 4/5b：去之字形 + 遮罩容器 + 相纸留白）=====
+   position/overflow：figure 作为 clip-path 揭示与视差余量的裁剪容器 */
 .gallery-figure {
   display: flex;
   justify-content: center;
-  margin-block: 2.5rem;
+  margin-block: 3.25rem;
+  position: relative;
+  overflow: hidden;
 }
 /* 横图：段落转场——宽幅（88%）+ 前后大留白 */
 .gallery-figure--wide {
   width: 88%;
-  margin-block: 4.5rem;
+  margin-block: 5.25rem;
 }
 /* 竖图：停顿——限宽（46%）靠右，且右边界与横图（88% 居中，右边距 6%）对齐 */
 .gallery-figure--tall {
   width: 46%;
-  margin-block: 4rem;
+  margin-block: 4.75rem;
   margin-left: auto;
   margin-right: 6%; /* (100% - 88%) / 2 = 6% */
 }
@@ -206,9 +242,9 @@ html, body {
   .gallery-figure--tall img { max-height: 80vh; }
 }
 @media (max-width: 639px) {
-  .gallery-figure { margin-block: 2rem; }
-  .gallery-figure--wide { width: 100%; margin-block: 2.5rem; }
-  .gallery-figure--tall { width: 85%; margin-block: 2.5rem; margin-left: auto; margin-right: 0; }
+  .gallery-figure { margin-block: 2.75rem; }
+  .gallery-figure--wide { width: 100%; margin-block: 3.25rem; }
+  .gallery-figure--tall { width: 85%; margin-block: 3.25rem; margin-left: auto; margin-right: 0; }
   .gallery-figure--tall img { max-height: 86vh; }
 }
 
@@ -231,3 +267,104 @@ button:focus-visible,
 /* ===== 灯箱（Q4：全屏看大图）===== */
 .lightbox { display: none; }
 .lightbox.is-open { display: flex; }
+
+
+/* ===== 首页 v2.0：四段式纵向叙事（Hero / 精选章节 / 索引 / 页脚）===== */
+
+/* Hero：一屏一图；入场 autoAlpha + scale 由 GSAP 驱动 */
+.hero { background: var(--color-ink); }
+.hero-img { will-change: transform, opacity; }
+
+/* ---- 精选叙事章节：pin 舞台（只动画子元素，AGENTS.md 动效规范）---- */
+.chapter { background: var(--color-ink); }
+.chapter-stage { position: relative; }
+.chapter-meta { flex: 0 0 auto; }
+.chapter-strip {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 5vw;
+  overflow: visible; /* 内容溢出自身体宽度，配合 x 漂移揭示后续照片 */
+  will-change: transform;
+}
+.chapter-photo { position: relative; overflow: hidden; flex: none; height: 44vh; }
+.chapter-photo--lead { height: 56vh; }
+/* 编辑式高低错落：奇数上浮、偶数下沉，打破水平对齐 */
+.chapter-photo:nth-child(2) { height: 36vh; margin-top: 15vh; }
+.chapter-photo:nth-child(3) { height: 48vh; margin-top: -11vh; }
+.chapter-photo:nth-child(4) { height: 33vh; margin-top: 13vh; }
+.chapter-photo:nth-child(5) { height: 42vh; margin-top: -9vh; }
+.chapter-photo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* blur-up：底层 16px 模糊占位（filter），上层原图加载完成后淡入（opacity） */
+.chapter-blur { filter: blur(18px); transform: scale(1.15); }
+.chapter-img { transform: scale(1.12); opacity: 0; transition: opacity 0.7s ease; }
+.chapter-img.is-loaded { opacity: 1; }
+
+@media (max-width: 639px) {
+  /* 移动端：meta 悬浮顶部 + 照片带贴底，避免纵向溢出 */
+  .chapter-stage { flex-direction: column; justify-content: flex-end; }
+  .chapter-stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(11, 11, 10, 0.88) 0%, rgba(11, 11, 10, 0.3) 45%, transparent 68%);
+    pointer-events: none;
+    z-index: 5;
+  }
+  .chapter-meta { position: absolute; top: 1.25rem; left: 0; z-index: 10; width: 100%; padding-inline: 1.5rem; }
+  /* flex:none 覆盖桌面 flex:1 1 auto，否则柱向布局中会被拉伸到满高 */
+  .chapter-strip { flex: none; width: 100%; height: 56vh; gap: 8vw; padding-right: 10vw; }
+  .chapter-photo, .chapter-photo:nth-child(n) { height: 38vh; margin-top: 0; }
+}
+
+/* 减少动态：blur-up 淡入跳过，直接显示完整图片 */
+@media (prefers-reduced-motion: reduce) {
+  .chapter-img { transition: none; opacity: 1; }
+}
+
+
+/* ===== 详情页 v2.0（Phase 4）：blur-up / 原图淡入 / 进度等宽 ===== */
+/* blur-up：16px 占位铺满 + 高斯模糊；原图加载完成后淡入盖过 */
+.gallery-figure .gallery-blur {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(20px);
+  transform: scale(1.15);
+}
+.gallery-figure .gallery-img {
+  position: relative;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+.gallery-figure .gallery-img.is-loaded { opacity: 1; }
+/* 进度指示：等宽数字，滚动更新不跳位 */
+.progress-num { font-variant-numeric: tabular-nums; }
+
+/* 减少动态：跳过原图淡入，直接显示完整图片 */
+@media (prefers-reduced-motion: reduce) {
+  .gallery-figure .gallery-img { transition: none; opacity: 1; }
+}
+
+
+/* ===== 详情页 v2.1（Phase 5b）：相纸质感——hairline 描边 + 极淡投影 =====
+   边框挂在 .gallery-frame（未缩放元素）上：img 的视差 scale 不把边框裁出视口；
+   overflow hidden 裁切视差余量，同时保持边框 1:1 完整显示 */
+.gallery-frame {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(11, 11, 10, 0.1);
+  box-shadow: 0 1px 3px rgba(11, 11, 10, 0.08);
+}

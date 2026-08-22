@@ -1,45 +1,169 @@
 ---
-// 加载动画：全屏黑遮罩 + 三根加载条（参考站结构）
-// 流程：bar 依次填充 → 遮罩淡出 → 派发 app:loaded 事件（主页入场动画监听）
-// prefers-reduced-motion 用户直接跳过
+// 加载动画：暗房冲洗（Phase 5a）
+// - mono 显影计数 00→100（tabular-nums 不跳宽）+ 橙色细线 + 首屏图 blur(20px)→0 同步「显影」
+// - 总时长 1.2s（计数 0.95s + 遮罩淡出 0.25s）；点击任意处跳过（补计数/清模糊/立即派发）
+// - 同会话已播（sessionStorage pc-loaded）静默移除；prefers-reduced-motion 直接跳过（v1 逻辑不变）
+// - 动效规范：只动画 opacity/transform/filter；遮罩半透明（bg-ink/90）让显影过程可见
 ---
-<div class="fixed inset-0 z-99 bg-ink" data-loader aria-hidden="true">
-  <div class="absolute inset-0 flex items-center justify-center">
-    <div class="flex gap-2">
-      <div class="bar h-2 w-16 rounded-full bg-white/40"></div>
-      <div class="bar h-2 w-16 rounded-full bg-white/60"></div>
-      <div class="bar h-2 w-16 rounded-full bg-white/80"></div>
-    </div>
+<div class="fixed inset-0 z-99 bg-ink/90" data-loader aria-hidden="true">
+  <div class="loader-stage">
+    <div class="loader-count" data-loader-count aria-hidden="true">00</div>
+    <p class="loader-caption">显影中 · DEVELOPING</p>
+    <div class="loader-track" aria-hidden="true"><span class="loader-fill" data-loader-fill></span></div>
   </div>
+  <p class="loader-skip">点击跳过 · SKIP</p>
 </div>
+
+<style>
+  /* 暗房显影台（scoped，随组件生效，不占 global.css） */
+  [data-loader] {
+    cursor: pointer;
+    user-select: none;
+  }
+  .loader-stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9rem;
+  }
+  .loader-count {
+    font-family: var(--font-mono);
+    font-size: clamp(2.75rem, 9vw, 4.5rem);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: #fff;
+    font-variant-numeric: tabular-nums; /* 计数等宽，数字跳动不抖 */
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+  .loader-count::after {
+    content: "%";
+    margin-left: 0.18em;
+    font-size: 0.42em;
+    color: var(--color-fog);
+  }
+  .loader-caption {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--color-fog);
+  }
+  .loader-track {
+    width: min(16rem, 60vw);
+    height: 1px;
+    background: rgba(255, 255, 255, 0.16);
+    overflow: hidden;
+  }
+  .loader-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--color-accent); /* 暗房安全灯橙，唯一强调色点睛 */
+    transform: scaleX(0);
+    transform-origin: left center;
+    will-change: transform;
+  }
+  .loader-skip {
+    position: absolute;
+    bottom: 2rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* 减少动态用户直接跳过，无需提示 */
+    .loader-skip { display: none; }
+  }
+</style>
 
 <script>
   import { gsap } from "gsap";
 
   const loader = document.querySelector("[data-loader]");
-  const bars = loader?.querySelectorAll(".bar");
+  const counter = document.querySelector("[data-loader-count]");
+  const fill = document.querySelector("[data-loader-fill]");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // 同会话已播放过加载动画（MPA 跳转）→ 静默移除，不再黑屏
   const alreadyPlayed = sessionStorage.getItem("pc-loaded") === "1";
+  // 首屏「显影」目标：主页 Hero 大图（fetchpriority=high）；详情页无目标则只播计数（Phase 4 自带 blur-up 揭示）
+  const blurTarget = document.querySelector(".hero-img, img[fetchpriority='high']");
 
-  // 页面已加载完成：播放动画或直接退出
+  let dispatched = false;
+  let skipped = false;
+  let tl: gsap.core.Timeline | null = null;
+  const dispatchLoaded = () => {
+    if (dispatched) return;
+    dispatched = true;
+    window.dispatchEvent(new CustomEvent("app:loaded"));
+  };
+  const removeLoader = () => loader?.remove();
+
+  // 点击任意处跳过：补满计数、清除模糊、立即派发入场事件（load 完成前点击同样生效）
+  loader?.addEventListener(
+    "click",
+    () => {
+      skipped = true;
+      sessionStorage.setItem("pc-loaded", "1");
+      tl?.kill();
+      if (counter) counter.textContent = "100";
+      if (blurTarget) gsap.set(blurTarget, { clearProps: "filter" });
+      dispatchLoaded();
+      if (!reduceMotion && loader) {
+        gsap.to(loader, { opacity: 0, duration: 0.25, ease: "power2.out", onComplete: removeLoader, overwrite: "auto" });
+      } else {
+        removeLoader();
+      }
+    },
+    { once: true }
+  );
+
+  // 起始态：首屏图先蒙 blur(20px)，load 后随计数同步显影至清晰（同会话/减少动态不设置）
+  if (blurTarget && !alreadyPlayed && !reduceMotion) {
+    gsap.set(blurTarget, { filter: "blur(20px)" });
+  }
+
+  // 页面加载完成：播放暗房显影动画，或直接退出
   async function finish() {
     if (!loader) return;
     if (reduceMotion || alreadyPlayed) {
       if (!alreadyPlayed) sessionStorage.setItem("pc-loaded", "1");
-      loader.remove();
-      window.dispatchEvent(new CustomEvent("app:loaded"));
+      dispatchLoaded();
+      removeLoader();
       return;
     }
     sessionStorage.setItem("pc-loaded", "1");
-    // bar 依次从左到右填充（宽度动画）
-    const tl = gsap.timeline({ onComplete: () => {
-      // 遮罩淡出并移除，通知页面播放入场动画
-      window.dispatchEvent(new CustomEvent("app:loaded"));
-      loader.remove();
-    }});
-    tl.fromTo(bars, { scaleX: 0 }, { scaleX: 1, duration: 0.5, stagger: 0.18, ease: "power2.inOut", transformOrigin: "left center" })
-      .to(loader, { opacity: 0, duration: 0.45, ease: "power2.out" }, "+=0.15");
+    if (skipped) return; // 点击已提前处理（计数已补满、事件已派发）
+
+    const progress = { v: 0 };
+    tl = gsap.timeline({ onComplete: () => { dispatchLoaded(); removeLoader(); } });
+    tl.to(
+      progress,
+      {
+        v: 100,
+        duration: 0.95,
+        ease: "power1.inOut",
+        onUpdate: () => {
+          if (counter) counter.textContent = String(Math.round(progress.v)).padStart(2, "0");
+        },
+      },
+      0
+    )
+      .fromTo(fill, { scaleX: 0 }, { scaleX: 1, duration: 0.95, ease: "power1.inOut", transformOrigin: "left center" }, 0)
+      .to(loader, { opacity: 0, duration: 0.25, ease: "power2.out" }, 0.95);
+    if (blurTarget) {
+      tl.fromTo(blurTarget, { filter: "blur(20px)" }, { filter: "blur(0px)", duration: 1.15, ease: "power2.inOut" }, 0)
+        // 显影完成清掉内联 filter，避免常驻滤镜合成层
+        .add(() => gsap.set(blurTarget, { clearProps: "filter" }));
+    }
   }
 
   if (document.readyState === "complete") {

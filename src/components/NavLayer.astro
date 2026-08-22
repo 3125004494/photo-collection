@@ -1,5 +1,6 @@
 ---
 // 全局悬浮导航层：左上站名、右上 Profile、底部提示——低调小字，不干扰视觉（AGENTS.md §5 UI 低调原则）
+// 底部提示随指针类型切换（与放映台交互一致）：桌面「拖拽 · Shift+滚轮 横向浏览」/ 触屏「左右滑动 横向浏览」
 ---
 <div class="pointer-events-none fixed inset-0 z-40 flex flex-col justify-between px-6 py-4 text-white sm:px-10 sm:py-6">
   <div class="flex items-start justify-between">
@@ -7,7 +8,7 @@
     <button type="button" class="label pointer-events-auto opacity-80 transition-opacity duration-300 hover:opacity-100" data-profile-open>Profile</button>
   </div>
   <div class="flex justify-center sm:justify-start">
-    <p class="label opacity-30">Scroll — 时间线</p>
+    <p class="label text-fog" data-hint>拖拽 · Shift+滚轮 横向浏览</p>
   </div>
 </div>
 
@@ -17,4 +18,14 @@
   openBtn?.addEventListener("click", () => {
     window.dispatchEvent(new CustomEvent("profile:toggle"));
   });
+
+  // 底部交互提示：随指针类型切换（text-fog 保证对比度 ≥4.5:1，替代原 opacity-30 的 ≈2.2:1）
+  const hint = document.querySelector("[data-hint]");
+  const pointerMq = window.matchMedia("(pointer: coarse)");
+  const updateHint = () => {
+    if (!hint) return;
+    hint.textContent = pointerMq.matches ? "左右滑动 横向浏览" : "拖拽 · Shift+滚轮 横向浏览";
+  };
+  updateHint();
+  pointerMq.addEventListener("change", updateHint);
 </script>

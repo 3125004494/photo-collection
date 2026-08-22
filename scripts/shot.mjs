@@ -4,7 +4,7 @@ import puppeteer from "file:///C:/Users/14586/.dsh/profiles/web/node_modules/pup
 import fs from "node:fs";
 import path from "node:path";
 
-const [url, out, w = "1280", h = "800", waitMs = "6500"] = process.argv.slice(2);
+const [url, out, w = "1280", h = "800", waitMs = "6500", scrollTo = ""] = process.argv.slice(2);
 if (!url || !out) {
   console.error("用法: node scripts/shot.mjs <url> <out.png> [width] [height] [waitMs]");
   process.exit(2);
@@ -22,6 +22,14 @@ try {
   await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
   // 等 Loader（约1.5s）与入场动画（约1.1s）播完再截
   await new Promise((r) => setTimeout(r, Number(waitMs)));
+  if (scrollTo) {
+    await page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (el) el.scrollIntoView({ block: "start" });
+      else window.scrollTo(0, Number(sel));
+    }, scrollTo);
+    await new Promise((r) => setTimeout(r, 1200));
+  }
   fs.mkdirSync(path.dirname(out), { recursive: true });
   await page.screenshot({ path: out });
   console.log("OK " + out + " " + fs.statSync(out).size + "B");

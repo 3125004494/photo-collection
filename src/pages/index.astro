@@ -1,88 +1,299 @@
 ---
-// 首页：摄影放映台 v3（挑衅问题重构）
-// Q1 焦点纵深 · Q2 主页内嵌详情面板（SPA 式，无跳转）· Q3 日期回归+年份刻度 · Q4 全屏灯箱 · Q5 实心标题
+// 首页 v2.0：四段式纵向叙事（Phase 3 重构，PRD §5）
+// 结构：Hero（一屏一图）→ 精选叙事章节 ×2（pin + scrub）→ 放映台索引（全部影集）→ 关于/页脚
+// 动效规范（AGENTS.md）：
+//   - 只动画 transform/opacity/filter/clip-path，禁 layout 属性
+//   - ScrollTrigger pin 全站 2 处（两个精选章节）且章节级；scrub 取值 0.8-1.2
+//   - 一切动效包在 gsap.matchMedia("(prefers-reduced-motion: no-preference)")，减少动态用户看到完整静态内容
+//   - 动画资源必须清理：pagehide 时 mm.revert + ticker.remove + ScrollTrigger.kill + 解绑监听
+//   - 入场动画统一监听 app:loaded（Loader 派发）后再播放
 import Base from "../layouts/Base.astro";
 import { albums } from "../data/albums";
+import site from "../data/site.json";
+import fs from "node:fs";
+
+// ---- 数据准备：精选与 Hero（albums.config.json 可覆盖）----
+const configUrl = new URL("../../albums.config.json", import.meta.url);
+const config = fs.existsSync(configUrl)
+  ? JSON.parse(fs.readFileSync(configUrl, "utf8"))
+  : { site: {}, albums: {} };
+
+// 精选章节：site.featured（slug 数组）→ 带 featured 标记的影集 → 默认两组
+const DEFAULT_FEATURED = ["2025-07-05", "2026-02-12"];
+const featuredCandidates: string[] =
+  Array.isArray(config.site?.featured) && config.site.featured.length > 0
+    ? config.site.featured
+    : albums.filter((a) => a.featured).map((a) => a.slug);
+const featuredAlbums = (featuredCandidates.length > 0 ? featuredCandidates : DEFAULT_FEATURED)
+  .slice(0, 2)
+  .map((s) => albums.find((a) => a.slug === s))
+  .filter((a): a is NonNullable<typeof a> => Boolean(a))
+  .filter((a, i, arr) => arr.findIndex((x) => x.slug === a.slug) === i);
+
+// Hero：site.heroAlbum → 默认 2026-03-05 潮汕·过年 → 兜底最新一组
+const heroSlug = typeof config.site?.heroAlbum === "string" ? config.site.heroAlbum : "2026-03-05";
+const hero = albums.find((a) => a.slug === heroSlug) || albums[albums.length - 1];
+const heroLine = site.bio.replace(/——HAN[。.]?$/, "").trim() || site.bio; // bio 提炼一句定位
+const year = new Date().getFullYear();
+
+// ---- 展示辅助 ----
 const covers = albums;
 const yearOf = (d: string | null) => (d ? d.slice(0, 4) : null);
 const themeOf = (t: string) => t.replace(/^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d{1,2})?\s*/, "").trim() || t;
 const fmtDate = (d: string) => d.replace(/^(\d{4})-0?(\d{1,2})-0?(\d{1,2})$/, "$1.$2.$3");
+const fmtRange = (a: { dateStart: string | null; dateEnd: string | null }) =>
+  a.dateStart && a.dateEnd && a.dateEnd !== a.dateStart
+    ? fmtDate(a.dateStart) + " – " + a.dateEnd.replace(/^\d{4}-0?(\d{1,2})-0?(\d{1,2})$/, "$1.$2")
+    : null;
+const seqOf = (a: { slug: string }) =>
+  String(albums.findIndex((x) => x.slug === a.slug) + 1).padStart(2, "0") +
+  " / " +
+  String(albums.length).padStart(2, "0");
+const chapterPhotos = (a: { photos: unknown[] }) => a.photos.slice(0, 5); // 每组取 3-5 张
+// 放映台卡片渲染宽度（Phase 5b-1 红旗修复）：卡高 = min(52vh, 44rem)，卡宽 = 卡高 × 封面宽高比；
+// sizes 用 min() 同时表达两个上界，旧值 46vw/80vw 在高屏/竖图场景偏差过大
+const stageCardSize = (a: { cover: { width: number; height: number } }) => {
+  const ar = a.cover.width / a.cover.height;
+  return `min(${(52 * ar).toFixed(1)}vh, ${Math.round(704 * ar)}px)`;
+};
+// 呼吸段年份水印：取相邻精选章节年份（Phase 5b 用户反馈：打破纯黑空旷）
+const breathYears = featuredAlbums.map((a) => yearOf(a.date));
 ---
+
 <Base title="HAN — 摄影作品集">
-  <main class="fixed inset-0 overflow-hidden">
-    <!-- 放映台：横向舞台 -->
-    <div class="timeline flex h-full items-center gap-12 overflow-x-auto px-[40vw]" data-timeline>
-      {
-        covers.map((a, i) => (
-          <a
-            href={"/gallery/" + a.slug}
-            class="stage-card group relative flex-none overflow-hidden rounded-3xl"
-            data-card
-            data-slug={a.slug}
-            style={"aspect-ratio:" + a.cover.width + "/" + a.cover.height}
-          >
-            <img
-              src={a.cover.src}
-              srcset={"/albums/" + a.slug + "/cover-400.webp 400w, /albums/" + a.slug + "/cover-800.webp 800w, /albums/" + a.slug + "/cover-1200.webp 1200w"}
-              sizes="(min-width: 1024px) 46vw, 80vw"
-              width={a.cover.width}
-              height={a.cover.height}
-              loading={i === 0 ? "eager" : "lazy"}
-              decoding="async"
-              alt={a.title}
-              draggable={false}
-              class="h-full w-full object-cover"
-            />
-            <!-- 标题：实心 + 聚焦填充；日期小字（Q3/Q5）；位置上移至按钮之上 -->
-            <span class="stage-title absolute bottom-24 left-1/2 w-full -translate-x-1/2 whitespace-nowrap px-4 text-center text-lg tracking-[-0.05em] sm:text-xl">{themeOf(a.title)}</span>
-            {a.date && <span class="stage-date absolute bottom-20 left-1/2 w-full -translate-x-1/2 whitespace-nowrap px-4 text-center text-[0.625rem] tracking-[0.14em]">{fmtDate(a.date)}</span>}
-            <!-- 进入按钮：黑色圆形 + 白色右箭头，hover 白色扩散反色 -->
-            <span class="stage-enter circle-btn" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7H12M12 7L7 2M12 7L7 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </span>
-          </a>
-        ))
-      }
+  <main id="top">
+    <!-- ===== 1) Hero：一屏一图 ===== -->
+    <section class="hero relative h-svh overflow-hidden" data-hero>
+      <img
+        class="hero-img absolute inset-0 h-full w-full object-cover"
+        src={hero.cover.src}
+        srcset={hero.cover.srcset}
+        sizes="100vw"
+        width={hero.cover.width}
+        height={hero.cover.height}
+        alt={hero.title}
+        fetchpriority="high"
+        decoding="async"
+      />
+      <!-- 底部渐变压暗：保证任何照片上文字可读（背景层，不参与动画） -->
+      <div class="absolute inset-0 bg-gradient-to-b from-ink/45 via-ink/10 to-ink/75" aria-hidden="true"></div>
+      <!-- 左文字区横向渐变压暗（船长追加项：bio/meta 在高饱和灯笼/烟雾区域保持可读，背景层不参与动画） -->
+      <div class="absolute inset-y-0 left-0 z-[1] w-[85%] bg-gradient-to-r from-ink/40 via-ink/15 to-transparent sm:w-[52%]" aria-hidden="true"></div>
+      <!-- 左对齐编辑式排版（船长追加项）：label 左上锚定，全列左对齐；Scroll ↓ 底部居中保留 -->
+      <div class="relative z-10 flex h-full flex-col items-start px-8 pt-[15vh] text-left sm:px-16">
+        <p class="label text-fog" data-hero-label>HAN · 摄影作品集</p>
+        <h1 class="display-title mt-5 text-7xl leading-none text-white sm:text-9xl" data-hero-title>HAN</h1>
+        <p class="mt-6 max-w-xs text-base leading-relaxed tracking-[-0.02em] text-white/85 sm:max-w-sm sm:text-lg" data-hero-line>{heroLine}</p>
+        <p class="label mt-10 text-white/70" data-hero-meta>
+          {[hero.location, hero.theme, hero.dateStart && fmtDate(hero.dateStart)].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <p class="label absolute bottom-10 left-1/2 z-10 -translate-x-1/2 text-fog" data-hero-hint>Scroll ↓</p>
+    </section>
+
+    <!-- 呼吸段（纯留白，无动画；超大年份水印打破空旷，静态元素） -->
+    <div class="breath relative h-[24vh] overflow-hidden" aria-hidden="true">
+      <span class="breath-year">{breathYears[0]}</span>
     </div>
 
-    <!-- 时间刻度：年份分段（Q3） -->
-    <div class="absolute bottom-8 left-0 right-0 z-10 flex items-center justify-center gap-4" data-scale>
-      <div class="flex items-center">
+    <!-- ===== 2) 精选叙事章节 ×2（pin + scrub，只动画子元素） ===== -->
+    {
+      featuredAlbums.map((a) => {
+        const themeTitle = a.theme || themeOf(a.title);
+        const range = fmtRange(a);
+        return (
+          <section class="chapter" data-chapter aria-label={themeTitle + " 精选章节"}>
+            <div class="chapter-stage flex h-svh items-center overflow-hidden" data-stage>
+              <div class="chapter-meta z-10 w-full shrink-0 px-6 sm:w-72 sm:pl-10 sm:pr-0" data-meta>
+                <p class="label text-fog">精选 · {seqOf(a)}</p>
+                <h2 class="display-title mt-4 text-5xl leading-none sm:text-6xl">{themeTitle}</h2>
+                <p class="label mt-4 text-fog">{[a.location, range].filter(Boolean).join(" · ")}</p>
+                <p class="mt-6 max-w-[18rem] text-sm leading-relaxed text-white/65">{a.description}</p>
+                <a
+                  href={"/gallery/" + a.slug}
+                  class="label mt-8 inline-block text-fog transition-colors duration-300 hover:text-accent"
+                >
+                  查看影集 ↗
+                </a>
+              </div>
+              <div class="chapter-strip" data-strip>
+                {
+                  chapterPhotos(a).map((p, i) => (
+                    <figure
+                      class={"chapter-photo" + (i === 0 ? " chapter-photo--lead" : "")}
+                      style={"aspect-ratio:" + p.width + "/" + p.height}
+                      data-photo
+                    >
+                      <!-- blur-up：16px 占位先出，原图 onload 后淡入 -->
+                      <img class="chapter-blur" src={p.blur} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+                      <img
+                        class="chapter-img"
+                        src={p.src}
+                        srcset={p.srcset}
+                        sizes="(max-width: 639px) 88vw, 40vw"
+                        width={p.width}
+                        height={p.height}
+                        alt={themeTitle + " 照片 " + (i + 1)}
+                        loading="lazy"
+                        decoding="async"
+                        onload={"this.classList.add('is-loaded')"}
+                      />
+                      <!-- 等宽序号（胶片计数标签）：每张统一左下定位 + 投影，浅色照片上可读 -->
+                      <figcaption class="chapter-seq" aria-hidden="true">
+                        {String(i + 1).padStart(2, "0")}
+                      </figcaption>
+                    </figure>
+                  ))
+                }
+              </div>
+            </div>
+          </section>
+        );
+      })
+    }
+
+    <!-- 呼吸段（章节之间，纯留白；年份水印取相邻精选章节年份） -->
+    <div class="breath relative h-[38vh] overflow-hidden" aria-hidden="true">
+      <span class="breath-year">{breathYears[1] ?? breathYears[0]}</span>
+    </div>
+
+    <!-- ===== 3) 放映台索引：全部影集（保留拖拽/滚轮/焦点缩放/年份刻度交互） ===== -->
+    <section class="relative h-svh" data-index-section>
+      <header class="flex items-end justify-between gap-6 px-6 pt-24 sm:px-10" data-index-head>
+        <div>
+          <p class="label text-fog">索引 · Index</p>
+          <h2 class="display-title mt-3 text-4xl leading-none sm:text-5xl">全部影集</h2>
+        </div>
+        <div class="flex flex-col items-end gap-1.5">
+          <p class="label whitespace-nowrap text-fog">{String(albums.length).padStart(2, "0")} 组 · 按时间线排序</p>
+          <!-- 交互提示（Phase 5b 用户反馈）：桌面拖拽/Shift+滚轮，触屏左右滑动 -->
+          <p class="timeline-hint" aria-hidden="true">
+            <span class="hint-desktop">拖拽 · Shift+滚轮 · 点击进入</span>
+            <span class="hint-touch">左右滑动 · 点击进入</span>
+          </p>
+        </div>
+      </header>
+      <!-- 横向舞台：大留白（40vw）让首张主卡居中；隐藏滚动条；可拖拽 -->
+      <div class="timeline mt-4 flex h-[calc(100%-9rem)] items-center gap-12 overflow-x-auto px-[40vw]" data-timeline>
         {
-          covers.map((a, i) => {
-            const y = yearOf(a.date);
-            const yPrev = i > 0 ? yearOf(covers[i - 1].date) : null;
-            return (
-              <>
-                {y && y !== yPrev && <span class="scale-year">{y}</span>}
-                <span class="scale-dot" data-dot data-index={i}></span>
-              </>
-            );
-          })
+          covers.map((a, i) => (
+            <a
+              href={"/gallery/" + a.slug}
+              class="stage-card group relative flex-none overflow-hidden rounded-none"
+              data-card
+              data-slug={a.slug}
+              style={"aspect-ratio:" + a.cover.width + "/" + a.cover.height}
+            >
+              <img
+                src={a.cover.src}
+                srcset={a.cover.srcset}
+                sizes={stageCardSize(a)}
+                width={a.cover.width}
+                height={a.cover.height}
+                loading={i === 0 ? "eager" : "lazy"}
+                decoding="async"
+                alt={a.title}
+                draggable={false}
+                class="h-full w-full object-cover"
+              />
+              <!-- 标题：宋体，聚焦填充；日期小字 -->
+              <span class="stage-title absolute bottom-24 left-1/2 w-full -translate-x-1/2 whitespace-nowrap px-4 text-center text-lg tracking-[-0.05em] sm:text-xl">{themeOf(a.title)}</span>
+              {a.date && <span class="stage-date absolute bottom-20 left-1/2 w-full -translate-x-1/2 whitespace-nowrap px-4 text-center text-[0.625rem] tracking-[0.14em]">{fmtDate(a.date)}</span>}
+              <span class="stage-enter circle-btn" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7H12M12 7L7 2M12 7L7 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </a>
+          ))
         }
       </div>
-    </div>
 
-    <!-- 交互提示 -->
-    <p class="label absolute bottom-20 right-6 z-10 opacity-25 sm:right-10">拖拽 · 滚轮 · 点击进入</p>
+      <!-- hover 跟手「查看」提示（Phase 5a）：单实例 fixed 定位，quickTo 平滑跟随；pointer-events:none 不挡交互 -->
+      <span class="stage-peek" data-peek aria-hidden="true">查看 ↗</span>
+
+      <!-- 左右箭头（Phase 5b 用户反馈：横向浏览替代方案，aria-label + 原生键盘可聚焦） -->
+      <button type="button" class="timeline-arrow" data-timeline-prev aria-label="上一组影集">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M12 2L5 7L12 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" class="timeline-arrow" data-timeline-next aria-label="下一组影集">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 2L9 7L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
+      <!-- 时间刻度：年份分段 + hover 组名提示 -->
+      <div class="absolute bottom-8 left-0 right-0 z-10 flex flex-wrap items-center justify-center gap-4 px-4" data-scale>
+        <div class="flex flex-wrap items-center justify-center">
+          {
+            covers.map((a, i) => {
+              const y = yearOf(a.date);
+              const yPrev = i > 0 ? yearOf(covers[i - 1].date) : null;
+              return (
+                <>
+                  {/* 年份标签：零宽锚点 + 绝对定位，不占点位空间，保证圆点 16px 等距节奏 */}
+                  {y && y !== yPrev && (
+                    <span class="scale-year" aria-hidden="true">
+                      <span class="scale-year-label">{y}</span>
+                    </span>
+                  )}
+                  <span class="scale-dot" data-dot data-index={i} aria-label={themeOf(a.title)}>
+                    <span class="scale-tip" aria-hidden="true">{themeOf(a.title)}</span>
+                  </span>
+                </>
+              );
+            })
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 4) 关于 / 页脚：尾图呼应 Hero（环形叙事） ===== -->
+    <section class="relative overflow-hidden" data-about>
+      <div class="absolute inset-0" data-about-img aria-hidden="true">
+        <img class="h-full w-full scale-110 object-cover opacity-30 blur-2xl" src={hero.cover.blur} alt="" loading="lazy" decoding="async" />
+        <img
+          class="absolute inset-0 h-full w-full object-cover opacity-25"
+          src={hero.cover.src}
+          srcset={hero.cover.srcset}
+          sizes="100vw"
+          width={hero.cover.width}
+          height={hero.cover.height}
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+      <div class="relative z-10 flex min-h-svh flex-col items-center justify-center px-6 py-28 text-center" data-about-copy>
+        <p class="label text-fog">关于 · About</p>
+        <h2 class="display-title mt-6 max-w-3xl text-4xl leading-[1.15] sm:text-6xl">用镜头记录<br />时间与地点<span class="text-accent">——HAN</span></h2>
+        <p class="mt-8 max-w-md text-sm leading-relaxed text-white/65">{site.bio}</p>
+        <a href={"mailto:" + site.email} class="label mt-10 leading-relaxed text-fog transition-colors duration-300 hover:text-accent">
+          Email — {site.email}
+        </a>
+        <p class="label mt-20 leading-relaxed text-fog">© {year} HAN · 胶片暗房</p>
+        <!-- 回到顶部：移出内容流，固定页脚底部居中（仍属 data-about-copy，参与入场 stagger） -->
+        <a
+          href="#top"
+          class="label absolute bottom-8 left-1/2 -translate-x-1/2 text-fog transition-colors duration-300 hover:text-white"
+        >
+          ↑ 回到顶部
+        </a>
+      </div>
+    </section>
   </main>
 
-  <!-- ===== 详情面板（Q2：SPA 式覆盖层，骨架由 JS 填充）===== -->
+  <!-- ===== 详情面板（SPA 式覆盖层，骨架由 createElement 模板函数填充，禁 innerHTML 字符串模板） ===== -->
   <div class="gallery-panel fixed inset-0 z-50" data-panel aria-hidden="true">
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-panel-backdrop></div>
     <div class="absolute inset-2 flex flex-col overflow-hidden rounded-3xl bg-paper text-ink sm:inset-6 sm:flex-row" data-panel-sheet>
       <aside class="flex shrink-0 flex-col justify-between gap-8 overflow-y-auto p-6 sm:w-80 sm:p-10" data-panel-aside></aside>
-      <div class="flex-1 overflow-y-auto px-4 py-10 sm:px-10" data-panel-scroller tabindex="0" role="region" aria-label="照片列表（可滚动）">
+      <div class="panel-scroller flex-1 overflow-y-auto px-4 py-10 sm:px-10" data-panel-scroller tabindex="0" role="region" aria-label="照片列表（可滚动）">
         <div class="mx-auto flex max-w-[56rem] flex-col" data-panel-photos></div>
       </div>
     </div>
-    <!-- 右上角关闭 -->
     <button type="button" class="circle-btn absolute right-4 top-4 z-10 sm:right-[26px] sm:top-[26px]" data-panel-close aria-label="关闭并返回">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.5"/></svg>
     </button>
   </div>
 
-  <!-- ===== 灯箱（Q4：全屏看大图）===== -->
+  <!-- ===== 灯箱：全屏看大图 ===== -->
   <div class="lightbox fixed inset-0 z-[70] items-center justify-center bg-black" data-lightbox aria-hidden="true">
     <img data-lightbox-img class="max-h-full max-w-full object-contain" alt="照片大图" />
     <button type="button" class="absolute right-5 top-5 inline-flex size-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25" data-lightbox-close aria-label="关闭大图">✕</button>
@@ -90,301 +301,792 @@ const fmtDate = (d: string) => d.replace(/^(\d{4})-0?(\d{1,2})-0?(\d{1,2})$/, "$
     <button type="button" class="absolute right-4 top-1/2 -translate-y-1/2 inline-flex size-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25" data-lightbox-next aria-label="下一张">→</button>
     <span class="label absolute bottom-6 left-1/2 -translate-x-1/2 text-white/60" data-lightbox-count></span>
   </div>
-</Base>
 
-<!-- 影集数据（JSON 内联，供客户端面板渲染；转义 < 防注入） -->
-<script type="application/json" id="albums-data" set:html={JSON.stringify(albums).replace(/</g, "\u003c")}></script>
-<script>
-  import { gsap } from "gsap";
+  <!-- 影集数据（JSON 内联，供客户端面板渲染；转义 < 防注入。懒加载分片留给后续 Phase） -->
+  <script type="application/json" id="albums-data" set:html={JSON.stringify(albums).replace(/</g, "\u003c")}></script>
 
-  // 从数据块读取（module 脚本，defer 执行，数据块在前）
-  const albums = JSON.parse(document.getElementById("albums-data").textContent);
+  <script>
+    import { gsap } from "gsap";
+    import { ScrollTrigger } from "gsap/ScrollTrigger";
+    gsap.registerPlugin(ScrollTrigger);
 
-  const timeline = document.querySelector("[data-timeline]");
-  const cards = timeline ? Array.from(timeline.querySelectorAll("[data-card]")) : [];
-  const dots = Array.from(document.querySelectorAll("[data-dot]"));
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const isTouch = window.matchMedia("(pointer: coarse)").matches;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isTouch = window.matchMedia("(pointer: coarse)").matches;
 
-  // ================= 放映台焦点（Q1：两侧卡上浮纵深） =================
-  function updateStage() {
-    if (!timeline) return;
-    const cx = timeline.clientWidth / 2;
-    let nearest = 0, nearestD = Infinity;
-    cards.forEach((card, i) => {
-      const r = card.getBoundingClientRect();
-      const c = r.left + r.width / 2;
-      const d = Math.min(Math.abs(c - cx) / (timeline.clientWidth * 0.45), 1.6);
-      if (d < nearestD) { nearestD = d; nearest = i; }
-      if (reduceMotion) return;
-      const scale = 1 - 0.18 * Math.min(d, 1);
-      const opacity = 1 - 0.6 * Math.min(d, 1);
-      const y = -22 * Math.min(d, 1); // 两侧卡轻微上浮，制造舞台纵深
-      gsap.set(card, { scale, opacity, y });
-      card.classList.toggle("is-focus", d < 0.55);
-    });
-    dots.forEach((dot, i) => dot.classList.toggle("is-active", i === nearest));
-  }
+    // 从数据块读取（module 脚本，defer 执行，数据块在前）
+    const albums = JSON.parse(document.getElementById("albums-data").textContent);
 
-  function centerFirst() {
-    if (!timeline || cards.length === 0) return;
-    const first = cards[0];
-    const w = first.getBoundingClientRect().width;
-    timeline.scrollLeft = first.offsetLeft - (timeline.clientWidth - w) / 2;
-    if (timeline.scrollLeft < 0) timeline.scrollLeft = 0;
-  }
-  function restorePosition() {
-    const saved = sessionStorage.getItem("pc-pos");
-    if (saved && timeline && timeline.scrollWidth > Number(saved)) timeline.scrollLeft = Number(saved);
-    else centerFirst();
-  }
+    const timeline = document.querySelector("[data-timeline]");
+    const cards = timeline ? Array.from(timeline.querySelectorAll("[data-card]")) : [];
+    const dots = Array.from(document.querySelectorAll("[data-dot]"));
 
-  // ================= 详情面板（Q2：SPA 式） =================
-  const panel = document.querySelector("[data-panel]");
-  const aside = document.querySelector("[data-panel-aside]");
-  const scroller = document.querySelector("[data-panel-scroller]");
-  const photosBox = document.querySelector("[data-panel-photos]");
-  const sheet = document.querySelector("[data-panel-sheet]");
-  const backdrop = document.querySelector("[data-panel-backdrop]");
-  let currentSlug: string | null = null;
-  let observer: IntersectionObserver | null = null;
-  const fmtDate = (d: string) => d.replace(/^(\d{4})-0?(\d{1,2})-0?(\d{1,2})$/, "$1.$2.$3");
-  const themeOf = (t: string) => t.replace(/^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d{1,2})?\s*/, "").trim() || t;
-
-  function renderPanel(slug: string, dir: "left" | "right" | null) {
-    const a = albums.find((x) => x.slug === slug);
-    if (!a) return;
-    currentSlug = slug;
-    const idx = albums.findIndex((x) => x.slug === slug);
-    const prev = idx > 0 ? albums[idx - 1] : null;
-    const next = idx < albums.length - 1 ? albums[idx + 1] : null;
-    const seq = String(idx + 1).padStart(2, "0") + " / " + String(albums.length).padStart(2, "0");
-    const theme = themeOf(a.title);
-
-
-    // 左侧信息栏
-    aside.innerHTML =
-      '<div><p class="font-mono text-[0.625rem] font-medium uppercase tracking-[0.14em] text-ash">' + seq + "</p>" +
-      '<h2 class="display-title mt-3 text-4xl leading-none sm:text-5xl">' + theme + "</h2>" +
-      (a.date ? '<p class="mt-6 font-mono text-[0.625rem] font-medium uppercase tracking-[0.14em] text-ash">' + fmtDate(a.date) + "</p>" : "") +
-      (a.location && theme !== a.location ? '<p class="mt-2 text-sm tracking-[0.04em] text-ink/80">' + a.location + "</p>" : "") +
-      (a.description ? '<p class="mt-8 max-w-[30rem] text-sm leading-relaxed text-ink/70">' + a.description + "</p>" : "") +
-      "</div>" +
-      '<nav class="flex flex-col gap-3 text-sm tracking-[-0.02em]">' +
-      (prev ? '<a href="/gallery/' + prev.slug + '" class="opacity-50 transition-opacity duration-300 hover:opacity-100" data-panel-nav data-dir="right">← ' + prev.title + "</a>" : "") +
-      (next ? '<a href="/gallery/' + next.slug + '" class="opacity-50 transition-opacity duration-300 hover:opacity-100" data-panel-nav data-dir="left">' + next.title + " →</a>" : "") +
-      "</nav>";
-
-    // 照片流（Q4：点击开灯箱）
-    photosBox.innerHTML = "";
-    const frag = document.createDocumentFragment();
-    a.photos.forEach((p, i) => {
-      const isPortrait = p.width < p.height;
-      const fig = document.createElement("figure");
-      fig.className = "gallery-figure" + (isPortrait ? " gallery-figure--tall" : " gallery-figure--wide");
-      const img = document.createElement("img");
-      img.src = p.src;
-      img.width = p.width;
-      img.height = p.height;
-      img.loading = i === 0 ? "eager" : "lazy";
-      img.decoding = "async";
-      img.alt = a.title + " " + (i + 1);
-      img.style.aspectRatio = p.width + "/" + p.height;
-      img.classList.add("h-auto", "w-full");
-      img.addEventListener("click", () => openLightbox(a.photos, i));
-      fig.appendChild(img);
-      frag.appendChild(fig);
-    });
-    photosBox.appendChild(frag);
-    scroller.scrollTop = 0;
-
-    // 图片渐显（IntersectionObserver，reduced-motion 直接显示）
-    observer?.disconnect();
-    const figs = Array.from(photosBox.querySelectorAll("figure"));
-    if (reduceMotion) {
-      figs.forEach((f) => { f.style.opacity = "1"; });
-    } else {
-      gsap.set(figs, { opacity: 0, y: 36 });
-      observer = new IntersectionObserver((entries) => {
-        entries.forEach((en) => {
-          if (en.isIntersecting) {
-            const f = en.target as HTMLElement;
-            gsap.to(f, { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" });
-            observer?.unobserve(f);
-          }
-        });
-      }, { root: scroller, threshold: 0.05 });
-      figs.forEach((f) => observer.observe(f));
-    }
-  }
-
-  function openPanel(slug: string, dir: "left" | "right" | null = null) {
-    if (!panel) return;
-    renderPanel(slug, dir);
-    panel.classList.add("is-open");
-    panel.setAttribute("aria-hidden", "false");
-    panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-modal", "true");
-    if (!reduceMotion) {
-      gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: 0.35 });
-      gsap.fromTo(sheet, { y: 56, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power3.out" });
-    }
-  }
-  function closePanel() {
-    if (!panel || !panel.classList.contains("is-open")) return;
-    const done = () => {
-      panel.classList.remove("is-open");
-      panel.setAttribute("aria-hidden", "true");
-      observer?.disconnect();
-      currentSlug = null;
-    };
-    if (reduceMotion) { done(); return; }
-    gsap.to(backdrop, { opacity: 0, duration: 0.3 });
-    gsap.to(sheet, { y: 32, opacity: 0, duration: 0.32, ease: "power2.in", onComplete: done });
-  }
-  function switchPanel(slug: string, dir: "left" | "right") {
-    if (!sheet || reduceMotion) { renderPanel(slug, dir); return; }
-    // 旧内容滑出 → 渲染新内容 → 滑入
-    gsap.to(photosBox, { x: dir === "left" ? -40 : 40, opacity: 0, duration: 0.28, ease: "power2.in",
-      onComplete: () => {
-        photosBox.style.transform = "";
-        renderPanel(slug, dir);
-        gsap.fromTo(photosBox, { x: dir === "left" ? 40 : -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.38, ease: "power2.out" });
-      } });
-  }
-
-  // URL 同步（Q2）：pushState / popstate
-  function openFromCard(e: Event, card: HTMLElement) {
-    const slug = card.dataset.slug;
-    if (!slug) return;
-    e.preventDefault();
-    sessionStorage.setItem("pc-pos", String(timeline.scrollLeft));
-    history.pushState({ slug }, "", "/gallery/" + slug);
-    openPanel(slug);
-  }
-  window.addEventListener("popstate", (e) => {
-    const slug = e.state && (e.state as { slug?: string }).slug;
-    if (slug) openPanel(slug);
-    else closePanel();
-  });
-
-  // ================= 灯箱（Q4） =================
-  const lightbox = document.querySelector("[data-lightbox]");
-  const lbImg = document.querySelector("[data-lightbox-img]") as HTMLImageElement | null;
-  const lbCount = document.querySelector("[data-lightbox-count]");
-  let lbPhotos: { src: string; width: number; height: number }[] = [];
-  let lbIndex = 0;
-  function openLightbox(photos: { src: string; width: number; height: number }[], i: number) {
-    lbPhotos = photos; lbIndex = i;
-    lbImg.src = photos[i].src;
-    lbCount.textContent = (i + 1) + " / " + photos.length;
-    lightbox.classList.add("is-open");
-    lightbox.setAttribute("aria-hidden", "false");
-  }
-  function closeLightbox() {
-    lightbox.classList.remove("is-open");
-    lightbox.setAttribute("aria-hidden", "true");
-  }
-  function lbStep(d: number) {
-    lbIndex = (lbIndex + d + lbPhotos.length) % lbPhotos.length;
-    lbImg.src = lbPhotos[lbIndex].src;
-    lbCount.textContent = (lbIndex + 1) + " / " + lbPhotos.length;
-  }
-  document.querySelector("[data-lightbox-close]")?.addEventListener("click", closeLightbox);
-  document.querySelector("[data-lightbox-prev]")?.addEventListener("click", () => lbStep(-1));
-  document.querySelector("[data-lightbox-next]")?.addEventListener("click", () => lbStep(1));
-  lightbox?.addEventListener("click", (e) => { if (e.target === lightbox) closeLightbox(); });
-
-  // ================= 全局事件 =================
-  document.addEventListener("click", (e) => {
-    const nav = (e.target as HTMLElement).closest("[data-panel-nav]");
-    if (nav) {
-      e.preventDefault();
-      const slug = (nav as HTMLElement).getAttribute("href").split("/").pop();
-      const dir = (nav as HTMLElement).getAttribute("data-dir") as "left" | "right";
-      if (slug && currentSlug !== slug) {
-        history.replaceState({ slug }, "", "/gallery/" + slug);
-        switchPanel(slug, dir);
-      }
-      return;
-    }
-  });
-  document.querySelector("[data-panel-close]")?.addEventListener("click", () => history.back());
-  document.addEventListener("keydown", (e) => {
-    const lbOpen = lightbox?.classList.contains("is-open");
-    if (lbOpen) {
-      if (e.key === "Escape") closeLightbox();
-      if (e.key === "ArrowLeft") lbStep(-1);
-      if (e.key === "ArrowRight") lbStep(1);
-      return;
-    }
-    const panelOpen = panel?.classList.contains("is-open");
-    if (panelOpen && e.key === "Escape") history.back();
-    if (panelOpen && !isTouch) {
-      const step = () => scroller.clientHeight * 0.8;
-      if (e.key === "ArrowDown" || e.key === "PageDown") { e.preventDefault(); scroller.scrollBy({ top: step(), behavior: "smooth" }); }
-      if (e.key === "ArrowUp" || e.key === "PageUp") { e.preventDefault(); scroller.scrollBy({ top: -step(), behavior: "smooth" }); }
-      if (e.key === "Home") { e.preventDefault(); scroller.scrollTo({ top: 0, behavior: "smooth" }); }
-      if (e.key === "End") { e.preventDefault(); scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" }); }
-    }
-  });
-
-  // ================= 入场与滚动 =================
-  function playIntro() {
-    if (!timeline || cards.length === 0) return;
-    if (reduceMotion) { updateStage(); return; }
-    gsap.from(cards, { y: 70, opacity: 0, duration: 1.1, stagger: 0.06, ease: "power3.out", clearProps: "all", onComplete: updateStage });
-  }
-  window.addEventListener("app:loaded", playIntro, { once: true });
-
-  if (!isTouch && timeline) {
-    let target = timeline.scrollLeft, current = timeline.scrollLeft;
-    timeline.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      target = Math.min(timeline.scrollWidth - timeline.clientWidth, Math.max(0, target + e.deltaY + e.deltaX));
-    }, { passive: false });
-    gsap.ticker.add(() => {
-      current += (target - current) * 0.14;
-      if (Math.abs(target - current) < 0.5) current = target;
-      timeline.scrollLeft = current;
-      updateStage();
-    });
-  } else if (timeline) {
-    timeline.addEventListener("scroll", updateStage, { passive: true });
-  }
-
-  if (!isTouch && timeline) {
-    let isDown = false, startX = 0, startScroll = 0, dragged = false;
-    timeline.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      isDown = true; dragged = false;
-      startX = e.clientX; startScroll = timeline.scrollLeft;
-      timeline.classList.add("grabbing");
-    });
-    window.addEventListener("pointermove", (e) => {
-      if (!isDown) return;
-      const dx = e.clientX - startX;
-      if (Math.abs(dx) > 4) dragged = true;
-      const next = Math.min(timeline.scrollWidth - timeline.clientWidth, Math.max(0, startScroll - dx));
-      timeline.scrollLeft = next;
-      target = next; current = next;
-    });
-    const onUp = () => { isDown = false; timeline.classList.remove("grabbing"); };
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    cards.forEach((card) => {
-      card.addEventListener("click", (e) => {
-        if (dragged) { e.preventDefault(); e.stopPropagation(); dragged = false; return; }
-        openFromCard(e, card);
+    // ================= 放映台焦点（焦点缩放） =================
+    function updateStage() {
+      if (!timeline) return;
+      const cx = timeline.clientWidth / 2;
+      let nearest = 0;
+      let nearestD = Infinity;
+      cards.forEach((card, i) => {
+        const r = card.getBoundingClientRect();
+        const c = r.left + r.width / 2;
+        const d = Math.min(Math.abs(c - cx) / (timeline.clientWidth * 0.45), 1.6);
+        if (d < nearestD) {
+          nearestD = d;
+          nearest = i;
+        }
+        if (reduceMotion) return;
+        const scale = 1 - 0.18 * Math.min(d, 1);
+        const opacity = 1 - 0.6 * Math.min(d, 1);
+        const y = -22 * Math.min(d, 1); // 两侧卡轻微上浮，制造舞台纵深
+        gsap.set(card, { scale, opacity, y });
+        card.classList.toggle("is-focus", d < 0.55); // 主卡标题填充高亮（Q3 交互保留）
       });
-    });
-  } else {
-    cards.forEach((card) => {
-      card.addEventListener("click", (e) => { openFromCard(e, card); });
-    });
-  }
+      dots.forEach((dot, i) => dot.classList.toggle("is-active", i === nearest));
+    }
 
-  restorePosition();
-  requestAnimationFrame(() => requestAnimationFrame(updateStage));
-</script>
+    function centerFirst() {
+      if (!timeline || cards.length === 0) return;
+      const first = cards[0];
+      const w = first.getBoundingClientRect().width;
+      timeline.scrollLeft = first.offsetLeft - (timeline.clientWidth - w) / 2;
+      if (timeline.scrollLeft < 0) timeline.scrollLeft = 0;
+    }
+    function restorePosition() {
+      const saved = sessionStorage.getItem("pc-pos");
+      if (saved && timeline && timeline.scrollWidth > Number(saved)) timeline.scrollLeft = Number(saved);
+      else centerFirst();
+    }
+
+    // ================= 放映台横向滚动（Phase 5b 用户反馈：滚轮不再劫持纵向滚动） =================
+    let wheelTick: (() => void) | null = null;
+    let onVisibility: (() => void) | null = null;
+    let shiftWheelHandler: ((e: WheelEvent) => void) | null = null;
+    let moveHandler: ((e: PointerEvent) => void) | null = null;
+    let upHandler: (() => void) | null = null;
+    // 目标/当前滚动位置：lerp 由拖拽/左右箭头/Shift+滚轮驱动；普通滚轮走页面纵向自然滚动
+    let wheelTarget = timeline ? timeline.scrollLeft : 0;
+    let wheelCurrent = wheelTarget;
+    const clampX = (v: number) =>
+      Math.min((timeline?.scrollWidth ?? 0) - (timeline?.clientWidth ?? 0), Math.max(0, v));
+    if (!isTouch && timeline) {
+      wheelTick = () => {
+        // 静止帧直接跳过（红旗修复）：lerp 收敛后不再每帧跑 updateStage 与写 scrollLeft
+        if (Math.abs(wheelTarget - wheelCurrent) < 0.5) return;
+        wheelCurrent += (wheelTarget - wheelCurrent) * 0.14;
+        if (Math.abs(wheelTarget - wheelCurrent) < 0.5) wheelCurrent = wheelTarget;
+        timeline.scrollLeft = wheelCurrent;
+        updateStage();
+      };
+      gsap.ticker.add(wheelTick);
+      // 页面隐藏时移除 ticker（红旗修复：后台标签页不做逐帧计算），恢复可见时重新挂载
+      onVisibility = () => {
+        if (!wheelTick) return;
+        if (document.hidden) gsap.ticker.remove(wheelTick);
+        else gsap.ticker.add(wheelTick);
+      };
+      document.addEventListener("visibilitychange", onVisibility);
+      // Shift+滚轮 → 横向（桌面惯例）；普通滚轮/触控板不拦截 preventDefault，页面纵向自然滚动
+      shiftWheelHandler = (e) => {
+        if (!e.shiftKey) return;
+        e.preventDefault();
+        peek?.classList.remove("is-on"); // 横向浏览时卡片相对指针移动，隐藏跟手提示
+        wheelTarget = clampX(wheelTarget + (e.deltaY + e.deltaX));
+      };
+      timeline.addEventListener("wheel", shiftWheelHandler, { passive: false });
+    } else if (timeline) {
+      timeline.addEventListener("scroll", updateStage, { passive: true });
+    }
+
+    // ================= 左右箭头（Phase 5b：键盘可聚焦；桌面驱动 lerp target，触屏原生 smooth 滚动） =================
+    const nudgeCards = (dir: number) => {
+      if (!timeline || cards.length === 0) return;
+      const w = cards[0].getBoundingClientRect().width;
+      const gap = parseFloat(getComputedStyle(timeline).columnGap || "0") || 0;
+      wheelTarget = clampX(wheelTarget + dir * (w + gap)); // 每次移动约一个卡位
+      if (isTouch) timeline.scrollTo({ left: wheelTarget, behavior: "smooth" });
+    };
+    document.querySelector("[data-timeline-prev]")?.addEventListener("click", () => nudgeCards(-1));
+    document.querySelector("[data-timeline-next]")?.addEventListener("click", () => nudgeCards(1));
+
+    // ================= hover 跟手「查看」提示（Phase 5a：gsap.quickTo 平滑跟随） =================
+    const peek = document.querySelector("[data-peek]");
+    // 拖拽 = 平移浏览（非查看意图），期间隐藏提示；滚轮/打开面板同理
+    let dragging = false;
+    let peekX: ((v: number) => void) | null = null;
+    let peekY: ((v: number) => void) | null = null;
+    const peekEnter = (e: PointerEvent) => {
+      if (!peek || dragging) return;
+      const x = e.clientX + 18;
+      const y = e.clientY + 16;
+      if (reduceMotion) {
+        peek.style.transform = `translate(${x}px, ${y}px)`; // 减少动态：直接跟随，无补间
+      } else {
+        gsap.set(peek, { x, y }); // 入场瞬间到位，之后 quickTo 平滑跟手
+        peekX?.(x);
+        peekY?.(y);
+      }
+      peek.classList.add("is-on");
+    };
+    const peekMove = (e: PointerEvent) => {
+      if (!peek) return;
+      if (dragging) {
+        peek.classList.remove("is-on");
+        return;
+      }
+      const x = e.clientX + 18;
+      const y = e.clientY + 16;
+      if (reduceMotion) peek.style.transform = `translate(${x}px, ${y}px)`;
+      else {
+        peekX?.(x);
+        peekY?.(y);
+      }
+      peek.classList.add("is-on");
+    };
+    const peekLeave = () => peek?.classList.remove("is-on");
+    // 页面纵向滚动时隐藏跟手提示（滚轮不再横向劫持后，卡片会随页面移出指针下方）
+    const onPageScroll = () => peek?.classList.remove("is-on");
+    window.addEventListener("scroll", onPageScroll, { passive: true });
+    if (!isTouch && timeline && peek) {
+      if (!reduceMotion) {
+        // quickTo：高频指针事件下无堆积的平滑跟随（性能优于每次新建 tween）
+        peekX = gsap.quickTo(peek, "x", { duration: 0.3, ease: "power3.out" });
+        peekY = gsap.quickTo(peek, "y", { duration: 0.3, ease: "power3.out" });
+      }
+      cards.forEach((card) => {
+        card.addEventListener("pointerenter", peekEnter);
+        card.addEventListener("pointermove", peekMove);
+        card.addEventListener("pointerleave", peekLeave);
+      });
+    }
+
+    // ================= 拖拽 =================
+    if (!isTouch && timeline) {
+      let isDown = false;
+      let startX = 0;
+      let startScroll = 0;
+      let dragged = false;
+      timeline.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        isDown = true;
+        dragging = true; // 拖拽期间隐藏跟手提示（Phase 5a）
+        peek?.classList.remove("is-on");
+        dragged = false;
+        startX = e.clientX;
+        startScroll = timeline.scrollLeft;
+        timeline.classList.add("grabbing");
+      });
+      moveHandler = (e) => {
+        if (!isDown) return;
+        const dx = e.clientX - startX;
+        if (Math.abs(dx) > 4) dragged = true;
+        const next = Math.min(timeline.scrollWidth - timeline.clientWidth, Math.max(0, startScroll - dx));
+        timeline.scrollLeft = next;
+        wheelTarget = next; // 与滚轮 lerp 同步，松手后不弹回
+        wheelCurrent = next;
+        updateStage(); // lerp 静止帧跳过 updateStage 后，拖拽期间的焦点缩放由此驱动（红旗修复配套）
+      };
+      upHandler = () => {
+        isDown = false;
+        dragging = false;
+        timeline.classList.remove("grabbing");
+      };
+      window.addEventListener("pointermove", moveHandler);
+      window.addEventListener("pointerup", upHandler);
+      window.addEventListener("pointercancel", upHandler);
+      cards.forEach((card) => {
+        card.addEventListener("click", (e) => {
+          if (dragged) {
+            e.preventDefault();
+            e.stopPropagation();
+            dragged = false;
+            return;
+          }
+          openFromCard(e, card);
+        });
+      });
+    } else {
+      cards.forEach((card) => {
+        card.addEventListener("click", (e) => {
+          openFromCard(e, card);
+        });
+      });
+    }
+
+    // ================= 模板工具：createElement 组装（AGENTS.md：禁 innerHTML 字符串模板） =================
+    function el(tag: string, attrs?: any, kids?: (Node | string)[]) {
+      const node = document.createElement(tag);
+      if (attrs) {
+        for (const k of Object.keys(attrs)) {
+          const v = attrs[k];
+          if (v == null) continue;
+          if (k === "dataset") {
+            Object.assign(node.dataset, v);
+          } else if (typeof v === "function") {
+            node.addEventListener(k.replace(/^on/, "").toLowerCase(), v);
+          } else {
+            node.setAttribute(k, String(v));
+          }
+        }
+      }
+      if (kids) node.append(...kids);
+      return node;
+    }
+
+    function buildAside(a: any, seq: string, theme: string, prev: any, next: any) {
+      const info = el("div", {}, [
+        el("p", { class: "font-mono text-[0.625rem] uppercase tracking-[0.18em] text-ash" }, [seq]),
+        el("h2", { class: "display-title mt-3 text-4xl leading-none sm:text-5xl" }, [theme]),
+      ]);
+      if (a.date) {
+        info.append(el("p", { class: "mt-6 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-ash" }, [fmtDate(a.date)]));
+      }
+      if (a.location && theme !== a.location) {
+        info.append(el("p", { class: "mt-2 text-sm tracking-[0.04em] text-ink/80" }, [a.location]));
+      }
+      if (a.description) {
+        info.append(el("p", { class: "mt-8 max-w-[30rem] text-sm leading-relaxed text-ink/70" }, [a.description]));
+      }
+      const nav = el("nav", { class: "flex flex-col gap-3 text-sm tracking-[-0.02em]" });
+      if (prev) {
+        nav.append(
+          el(
+            "a",
+            { href: "/gallery/" + prev.slug, class: "opacity-50 transition-opacity duration-300 hover:opacity-100", dataset: { panelNav: "", dir: "right" } },
+            ["← " + prev.title]
+          )
+        );
+      }
+      if (next) {
+        nav.append(
+          el(
+            "a",
+            { href: "/gallery/" + next.slug, class: "opacity-50 transition-opacity duration-300 hover:opacity-100", dataset: { panelNav: "", dir: "left" } },
+            [next.title + " →"]
+          )
+        );
+      }
+      return [info, nav];
+    }
+
+    // ================= 详情面板（SPA 式） =================
+    const panel = document.querySelector("[data-panel]");
+    const aside = document.querySelector("[data-panel-aside]");
+    const scroller = document.querySelector("[data-panel-scroller]");
+    const photosBox = document.querySelector("[data-panel-photos]");
+    const sheet = document.querySelector("[data-panel-sheet]");
+    const backdrop = document.querySelector("[data-panel-backdrop]");
+    let currentSlug: string | null = null;
+    let observer: IntersectionObserver | null = null;
+    const fmtDate = (d: string) => d.replace(/^(\d{4})-0?(\d{1,2})-0?(\d{1,2})$/, "$1.$2.$3");
+    const themeOf = (t: string) => t.replace(/^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d{1,2})?\s*/, "").trim() || t;
+
+    function renderPanel(slug: string) {
+      const a = albums.find((x: any) => x.slug === slug);
+      if (!a) return;
+      currentSlug = slug;
+      const idx = albums.findIndex((x: any) => x.slug === slug);
+      const prev = idx > 0 ? albums[idx - 1] : null;
+      const next = idx < albums.length - 1 ? albums[idx + 1] : null;
+      const seq = String(idx + 1).padStart(2, "0") + " / " + String(albums.length).padStart(2, "0");
+      const theme = a.theme || themeOf(a.title);
+
+      // 左栏：信息区 + 前后导航（createElement 组装）
+      aside.replaceChildren(...buildAside(a, seq, theme, prev, next));
+
+      // 照片流（schema v2：srcset/sizes 响应式；点击开灯箱）
+      photosBox.replaceChildren();
+      const frag = document.createDocumentFragment();
+      a.photos.forEach((p: any, i: number) => {
+        const isPortrait = p.width < p.height;
+        const fig = document.createElement("figure");
+        fig.className = "gallery-figure" + (isPortrait ? " gallery-figure--tall" : " gallery-figure--wide");
+        const img = document.createElement("img");
+        img.src = p.src;
+        img.srcset = p.srcset || "";
+        img.sizes = "(max-width: 639px) 88vw, 40rem";
+        img.width = p.width;
+        img.height = p.height;
+        img.loading = i === 0 ? "eager" : "lazy";
+        img.decoding = "async";
+        img.alt = a.title + " " + (i + 1);
+        img.style.aspectRatio = p.width + "/" + p.height;
+        img.classList.add("h-auto", "w-full");
+        img.addEventListener("click", () => openLightbox(a.photos, i));
+        fig.appendChild(img);
+        frag.appendChild(fig);
+      });
+      photosBox.appendChild(frag);
+      scroller.scrollTop = 0;
+
+      // 图片渐显（IntersectionObserver，reduced-motion 直接显示）
+      observer?.disconnect();
+      const figs = Array.from(photosBox.querySelectorAll("figure"));
+      if (reduceMotion) {
+        figs.forEach((f: HTMLElement) => {
+          f.style.opacity = "1";
+        });
+      } else {
+        gsap.set(figs, { opacity: 0, y: 36 });
+        observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((en) => {
+              if (en.isIntersecting) {
+                const f = en.target as HTMLElement;
+                gsap.to(f, { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" });
+                observer?.unobserve(f);
+              }
+            });
+          },
+          { root: scroller, threshold: 0.05 }
+        );
+        figs.forEach((f) => observer.observe(f));
+      }
+    }
+
+    function openPanel(slug: string) {
+      if (!panel) return;
+      renderPanel(slug);
+      panel.classList.add("is-open");
+      panel.setAttribute("aria-hidden", "false");
+      panel.setAttribute("role", "dialog");
+      panel.setAttribute("aria-modal", "true");
+      if (!reduceMotion) {
+        gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: 0.35 });
+        gsap.fromTo(sheet, { y: 56, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power3.out" });
+      }
+    }
+    function closePanel() {
+      if (!panel || !panel.classList.contains("is-open")) return;
+      const done = () => {
+        panel.classList.remove("is-open");
+        panel.setAttribute("aria-hidden", "true");
+        observer?.disconnect();
+        currentSlug = null;
+      };
+      if (reduceMotion) {
+        done();
+        return;
+      }
+      gsap.to(backdrop, { opacity: 0, duration: 0.3 });
+      gsap.to(sheet, { y: 32, opacity: 0, duration: 0.32, ease: "power2.in", onComplete: done });
+    }
+    function switchPanel(slug: string, dir: "left" | "right") {
+      if (!sheet || reduceMotion) {
+        renderPanel(slug);
+        return;
+      }
+      gsap.to(photosBox, {
+        x: dir === "left" ? -40 : 40,
+        opacity: 0,
+        duration: 0.28,
+        ease: "power2.in",
+        onComplete: () => {
+          photosBox.style.transform = "";
+          renderPanel(slug);
+          gsap.fromTo(photosBox, { x: dir === "left" ? 40 : -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.38, ease: "power2.out" });
+        },
+      });
+    }
+
+    // URL 同步：pushState / popstate
+    function openFromCard(e: Event, card: HTMLElement) {
+      const slug = card.dataset.slug;
+      if (!slug) return;
+      e.preventDefault();
+      peek?.classList.remove("is-on"); // 面板打开前隐藏跟手提示（Phase 5a）
+      sessionStorage.setItem("pc-pos", String(timeline.scrollLeft));
+      history.pushState({ slug }, "", "/gallery/" + slug);
+      openPanel(slug);
+    }
+    const popHandler = (e: PopStateEvent) => {
+      const slug = e.state && (e.state as { slug?: string }).slug;
+      if (slug) openPanel(slug);
+      else closePanel();
+    };
+    window.addEventListener("popstate", popHandler);
+
+    // ================= 灯箱 =================
+    const lightbox = document.querySelector("[data-lightbox]");
+    const lbImg = document.querySelector("[data-lightbox-img]") as HTMLImageElement | null;
+    const lbCount = document.querySelector("[data-lightbox-count]");
+    let lbPhotos: { src: string; width: number; height: number }[] = [];
+    let lbIndex = 0;
+    function openLightbox(photos: { src: string; width: number; height: number }[], i: number) {
+      lbPhotos = photos;
+      lbIndex = i;
+      lbImg.src = photos[i].src;
+      lbCount.textContent = i + 1 + " / " + photos.length;
+      lightbox.classList.add("is-open");
+      lightbox.setAttribute("aria-hidden", "false");
+    }
+    function closeLightbox() {
+      lightbox.classList.remove("is-open");
+      lightbox.setAttribute("aria-hidden", "true");
+    }
+    function lbStep(d: number) {
+      lbIndex = (lbIndex + d + lbPhotos.length) % lbPhotos.length;
+      lbImg.src = lbPhotos[lbIndex].src;
+      lbCount.textContent = lbIndex + 1 + " / " + lbPhotos.length;
+    }
+    document.querySelector("[data-lightbox-close]")?.addEventListener("click", closeLightbox);
+    document.querySelector("[data-lightbox-prev]")?.addEventListener("click", () => lbStep(-1));
+    document.querySelector("[data-lightbox-next]")?.addEventListener("click", () => lbStep(1));
+    lightbox?.addEventListener("click", (e) => {
+      if (e.target === lightbox) closeLightbox();
+    });
+
+    // ================= 全局事件 =================
+    document.addEventListener("click", (e) => {
+      const nav = (e.target as HTMLElement).closest("[data-panel-nav]");
+      if (nav) {
+        e.preventDefault();
+        const slug = (nav as HTMLElement).getAttribute("href").split("/").pop();
+        const dir = (nav as HTMLElement).getAttribute("data-dir") as "left" | "right";
+        if (slug && currentSlug !== slug) {
+          history.replaceState({ slug }, "", "/gallery/" + slug);
+          switchPanel(slug, dir);
+        }
+        return;
+      }
+    });
+    document.querySelector("[data-panel-close]")?.addEventListener("click", () => history.back());
+    document.addEventListener("keydown", (e) => {
+      const lbOpen = lightbox?.classList.contains("is-open");
+      if (lbOpen) {
+        if (e.key === "Escape") closeLightbox();
+        if (e.key === "ArrowLeft") lbStep(-1);
+        if (e.key === "ArrowRight") lbStep(1);
+        return;
+      }
+      const panelOpen = panel?.classList.contains("is-open");
+      if (panelOpen && e.key === "Escape") history.back();
+      if (panelOpen && !isTouch) {
+        const step = () => scroller.clientHeight * 0.8;
+        if (e.key === "ArrowDown" || e.key === "PageDown") {
+          e.preventDefault();
+          scroller.scrollBy({ top: step(), behavior: "smooth" });
+        }
+        if (e.key === "ArrowUp" || e.key === "PageUp") {
+          e.preventDefault();
+          scroller.scrollBy({ top: -step(), behavior: "smooth" });
+        }
+        if (e.key === "Home") {
+          e.preventDefault();
+          scroller.scrollTo({ top: 0, behavior: "smooth" });
+        }
+        if (e.key === "End") {
+          e.preventDefault();
+          scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+        }
+      }
+    });
+
+    // ================= 动效（matchMedia 包裹；减少动态用户不进入，看到完整静态内容） =================
+    const mm = gsap.matchMedia();
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      // ---- Hero 入场（app:loaded 后播；4s 兜底防事件丢失） ----
+      const heroImg = document.querySelector(".hero-img");
+      const heroKids = document.querySelectorAll("[data-hero-label], [data-hero-title], [data-hero-line], [data-hero-hint]");
+      let heroPlayed = false;
+      const playHero = () => {
+        if (heroPlayed || !heroImg) return;
+        heroPlayed = true;
+        gsap.fromTo(heroImg, { autoAlpha: 0, scale: 1.06 }, { autoAlpha: 1, scale: 1, duration: 1.5, ease: "power3.out" });
+        gsap.fromTo(heroKids, { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: 1.0, stagger: 0.12, ease: "power2.out", delay: 0.3 });
+      };
+      window.addEventListener("app:loaded", playHero, { once: true });
+      setTimeout(playHero, 4000);
+
+      // ---- 精选章节 ×2：pin + scrub（只动画子元素：clip-path 揭示 / 单层视差 / 横向漂移） ----
+      document.querySelectorAll("[data-chapter]").forEach((section) => {
+        const stage = section.querySelector("[data-stage]");
+        const strip = section.querySelector("[data-strip]");
+        const photos = section.querySelectorAll("[data-photo]");
+        const imgs = section.querySelectorAll(".chapter-img");
+        const metaKids = section.querySelectorAll("[data-meta] > *");
+        if (!stage || !strip || photos.length === 0) return;
+
+        // 初始遮罩状态（减少动态用户不进入本分支，照片保持完整可见）
+        gsap.set(photos, { clipPath: "inset(0% 0% 100% 0%)" });
+        const drift = () => -(strip.scrollWidth - window.innerWidth);
+
+        const tl = gsap.timeline({
+          defaults: { ease: "none" },
+          scrollTrigger: {
+            trigger: section,
+            start: "top top",
+            end: "+=150%",
+            pin: stage,
+            scrub: 1,
+            anticipatePin: 1,
+            // 刷新时 invalidate 时间线：函数式 x（漂移距离随视口变化）重新计算
+            invalidateOnRefresh: true,
+          },
+        });
+        tl.to(photos, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.5, stagger: 0.08, ease: "power1.inOut" }, 0)
+          .fromTo(strip, { x: 0 }, { x: drift }, 0)
+          .fromTo(imgs, { yPercent: -7 }, { yPercent: 7, stagger: 0.05 }, 0)
+          .fromTo(metaKids, { y: 44, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35, stagger: 0.06, ease: "power2.out" }, 0.15)
+          .to(metaKids, { autoAlpha: 0.3, duration: 0.25 }, 0.75);
+      });
+
+      // ---- 索引区入场：头部 + 卡片 stagger（once，不 pin） ----
+      ScrollTrigger.create({
+        trigger: "[data-index-section]",
+        start: "top 70%",
+        once: true,
+        onEnter: () => {
+          gsap.fromTo("[data-index-head] > *", { autoAlpha: 0, y: 28 }, { autoAlpha: 1, y: 0, duration: 0.9, stagger: 0.08, ease: "power3.out" });
+          gsap.fromTo(
+            cards,
+            { autoAlpha: 0, y: 60 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              duration: 1.0,
+              stagger: 0.05,
+              ease: "power3.out",
+              onComplete: () => {
+                gsap.set(cards, { clearProps: "all" });
+                updateStage();
+              },
+            }
+          );
+        },
+      });
+
+      // ---- 关于/页脚揭示：尾图 clip-path wipe + 文字 stagger（once） ----
+      const about = document.querySelector("[data-about]");
+      if (about) {
+        gsap.set("[data-about-img]", { clipPath: "inset(0% 0% 100% 0%)" });
+        ScrollTrigger.create({
+          trigger: about,
+          start: "top 70%",
+          once: true,
+          onEnter: () => {
+            gsap.fromTo("[data-about-img]", { clipPath: "inset(0% 0% 100% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 1.2, ease: "power2.inOut" });
+            gsap.fromTo("[data-about-copy] > *", { autoAlpha: 0, y: 30 }, { autoAlpha: 1, y: 0, duration: 0.9, stagger: 0.08, ease: "power2.out", delay: 0.15 });
+          },
+        });
+      }
+
+      // 图片加载稳定后重算触发位置（pin 与章节高度依赖布局）
+      window.addEventListener("load", () => ScrollTrigger.refresh(), { once: true });
+    });
+
+    // ================= 动画资源清理（AGENTS.md：ticker.remove / ScrollTrigger.kill / 解绑监听） =================
+    function cleanup() {
+      mm.revert();
+      if (wheelTick) gsap.ticker.remove(wheelTick);
+      if (onVisibility) document.removeEventListener("visibilitychange", onVisibility);
+      ScrollTrigger.getAll().forEach((t) => t.kill());
+      if (peek) gsap.killTweensOf(peek); // Phase 5a：清理 quickTo 补间
+      cards.forEach((card) => {
+        card.removeEventListener("pointerenter", peekEnter);
+        card.removeEventListener("pointermove", peekMove);
+        card.removeEventListener("pointerleave", peekLeave);
+      });
+      window.removeEventListener("popstate", popHandler);
+      window.removeEventListener("scroll", onPageScroll);
+      if (shiftWheelHandler && timeline) timeline.removeEventListener("wheel", shiftWheelHandler);
+      if (moveHandler) window.removeEventListener("pointermove", moveHandler);
+      if (upHandler) {
+        window.removeEventListener("pointerup", upHandler);
+        window.removeEventListener("pointercancel", upHandler);
+      }
+    }
+    window.addEventListener("pagehide", cleanup, { once: true });
+    window.addEventListener("beforeunload", cleanup, { once: true });
+
+    restorePosition();
+    // 恢复的滚动位置与滚轮 lerp 同步，避免首次滚轮时时间线跳回
+    wheelTarget = timeline ? timeline.scrollLeft : 0;
+    wheelCurrent = wheelTarget;
+    requestAnimationFrame(() => requestAnimationFrame(updateStage));
+  </script>
+
+  <style>
+    /* ===== Phase 3 视觉复审修复（scoped，仅本页生效；禁止动 global.css，避免与 t3 冲突）===== */
+
+    /* Hero 文字投影：保证浅色照片上可读（h1 标题除外，保持原样不动） */
+    .hero p {
+      text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    /* 船长追加项（t9 批次注记）：bio/meta 强化投影，高饱和区域可读 */
+    .hero [data-hero-line],
+    .hero [data-hero-meta] {
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 1px 14px rgba(0, 0, 0, 0.45);
+    }
+    /* meta 行（地点·主题·日期）：加粗 + 加字距（0.1em → 0.15em），与背景纹理区分 */
+    .hero [data-hero-meta] {
+      font-weight: 600;
+      letter-spacing: 0.15em;
+    }
+    /* Scroll ↓ 半透明背板：防被前景吞没 */
+    [data-hero-hint] {
+      padding: 0.42rem 0.9rem;
+      border-radius: 9999px;
+      background: rgba(0, 0, 0, 0.32);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+
+    /* 章节 meta 文字投影：移动端 meta 悬浮于照片之上；桌面端照片漂移可能经过文字下方 */
+    .chapter-meta :is(p, h2, a) {
+      text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    /* 章节照片：水平间距增大一档（5vw → 6.5vw，1280px 视口 ≈ 64px → 83px，缓解黑底压迫感）；
+       仅桌面生效，移动端 8vw 规则不受影响 */
+    @media (min-width: 640px) {
+      .chapter .chapter-strip {
+        gap: 6.5vw;
+      }
+    }
+
+    /* 每张章节照片的等宽序号标签：统一左下定位（相对各自照片的基线一致），胶片计数感 */
+    .chapter-seq {
+      position: absolute;
+      left: 0.8rem;
+      bottom: 0.7rem;
+      z-index: 2;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      letter-spacing: 0.14em;
+      color: rgba(255, 255, 255, 0.62);
+      text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    /* 放映台卡片日期：提高对比并加投影（标题投影 global 已有，标题位于 45% 底部渐变内，保持可读） */
+    .timeline .stage-card.is-focus .stage-date {
+      color: rgba(255, 255, 255, 0.7);
+      text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    /* 放映台 hover 跟手「查看」提示（Phase 5a）：fixed 定位 + quickTo 平滑跟随；
+       z-40 低于详情面板(50)/灯箱(70)，面板打开时即使未隐藏也被盖住 */
+    .stage-peek {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 40;
+      padding: 0.42rem 0.75rem;
+      border-radius: 9999px;
+      background: rgba(11, 11, 10, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      letter-spacing: 0.12em;
+      white-space: nowrap;
+      pointer-events: none; /* 不抢卡片 hover/click，只服务下一步行为 */
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      will-change: transform;
+    }
+    .stage-peek.is-on {
+      opacity: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stage-peek {
+        transition: none; /* 减少动态：无淡入补间，位置直接跟随指针 */
+      }
+    }
+
+    /* ===== Phase 5b 用户反馈（scoped + :global 均限本页）===== */
+
+    /* 背景呼吸感：纯黑 → 极淡径向渐变（中心 #15130F、边缘 #0B0B0A，圆心页面中上部）；
+       body.bg-ink 特异性(0,1,1) 高于 global.css 的 html,body(0,0,1)，且未包裹 @layer，稳定覆盖 */
+    :global(body.bg-ink) {
+      background: radial-gradient(120% 90% at 50% 30%, #15130f 0%, #0b0b0a 58%, #0b0b0a 100%);
+    }
+
+    /* About 呼应照片底部 mask 渐隐：消除照片与背景的硬切边界（不截断上部主体） */
+    [data-about-img] {
+      -webkit-mask-image: linear-gradient(to bottom, black 0%, black 52%, transparent 96%);
+      mask-image: linear-gradient(to bottom, black 0%, black 52%, transparent 96%);
+    }
+
+    /* 呼吸段超大年份水印：mono、静态、近不可见（打破空旷但不抢焦点） */
+    .breath-year {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      font-family: var(--font-mono);
+      font-size: clamp(6rem, 20vw, 16rem);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      line-height: 1;
+      color: rgba(255, 255, 255, 0.04);
+      user-select: none;
+    }
+
+    /* 放映台左右箭头：半透明墨色圆钮，hover 反色（与 circle-btn 视觉体系一致） */
+    .timeline-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 30;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 9999px;
+      background: rgba(11, 11, 10, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      color: rgba(255, 255, 255, 0.85);
+      cursor: pointer;
+      transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+    }
+    .timeline-arrow:hover {
+      color: #0b0b0a;
+      background: #fff;
+      border-color: #fff;
+    }
+    .timeline-arrow[data-timeline-prev] { left: 1rem; }
+    .timeline-arrow[data-timeline-next] { right: 1rem; }
+    @media (min-width: 640px) {
+      .timeline-arrow { width: 2.75rem; height: 2.75rem; }
+      .timeline-arrow[data-timeline-prev] { left: 1.5rem; }
+      .timeline-arrow[data-timeline-next] { right: 1.5rem; }
+    }
+
+    /* 交互提示文案：桌面/触屏双文案，按指针类型切换 */
+    .timeline-hint {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      letter-spacing: 0.1em;
+      color: var(--color-fog);
+      white-space: nowrap;
+    }
+    .hint-touch { display: none; }
+    @media (pointer: coarse) {
+      .hint-desktop { display: none; }
+      .hint-touch { display: inline; }
+    }
+
+    /* 年份刻度：年份标签零宽锚点（不占位），标签绝对定位浮于刻度下方，圆点保持 16px 等距节奏 */
+    [data-scale] .scale-year {
+      position: relative;
+      width: 0;
+      flex: none;
+      margin: 0;
+    }
+    .scale-year-label {
+      position: absolute;
+      top: 1.35rem;
+      left: 0;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      letter-spacing: 0.14em;
+      color: rgba(255, 255, 255, 0.62);
+      pointer-events: none; /* 不遮挡圆点 hover 热区 */
+    }
+  </style>
+</Base>
