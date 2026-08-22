@@ -20,8 +20,8 @@ const { title = site.name, nav = true } = Astro.props;
     <meta property="og:type" content="website" />
     <meta property="og:title" content={site.name + " — 个人摄影作品集"} />
     <meta property="og:description" content={site.bio} />
-    <!-- 部署确定域名后，把 og:image 换成绝对 URL -->
-    <meta property="og:image" content="/albums/2026-07-11/cover-1200.webp" />
+    <!-- 已上线：https://photo-collection-2l3.pages.dev（og:image 用首页 Hero 指定照片，与首屏一致） -->
+    <meta property="og:image" content="https://photo-collection-2l3.pages.dev/albums/2026-07-11/%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20260820163401_269_12.webp" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
