@@ -30,10 +30,13 @@ const featuredAlbums = (featuredCandidates.length > 0 ? featuredCandidates : DEF
   .filter((a): a is NonNullable<typeof a> => Boolean(a))
   .filter((a, i, arr) => arr.findIndex((x) => x.slug === a.slug) === i);
 
-// Hero：site.heroAlbum → 默认 2026-03-05 潮汕·过年 → 兜底最新一组
-const heroSlug = typeof config.site?.heroAlbum === "string" ? config.site.heroAlbum : "2026-03-05";
+// Hero：site.heroAlbum → 默认 2026-07-11 广州·南沙客运港 → 兜底最新一组（用户修改）
+const heroSlug = typeof config.site?.heroAlbum === "string" ? config.site.heroAlbum : "2026-07-11";
 const hero = albums.find((a) => a.slug === heroSlug) || albums[albums.length - 1];
 const heroLine = site.bio.replace(/——HAN[。.]?$/, "").trim() || site.bio; // bio 提炼一句定位
+// About 尾图：site.aboutAlbum → 默认 2026-05-24 广州·长洲岛 → 兜底 hero（用户修改）
+const aboutSlug = typeof config.site?.aboutAlbum === "string" ? config.site.aboutAlbum : "2026-05-24";
+const aboutTail = albums.find((a) => a.slug === aboutSlug) || hero;
 const year = new Date().getFullYear();
 
 // ---- 展示辅助 ----
@@ -247,22 +250,26 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     <!-- ===== 4) 关于 / 页脚：尾图呼应 Hero（环形叙事） ===== -->
     <section class="relative overflow-hidden" data-about>
       <div class="absolute inset-0" data-about-img aria-hidden="true">
-        <img class="h-full w-full scale-110 object-cover opacity-30 blur-2xl" src={hero.cover.blur} alt="" loading="lazy" decoding="async" />
-        <img
-          class="absolute inset-0 h-full w-full object-cover opacity-25"
-          src={hero.cover.src}
-          srcset={hero.cover.srcset}
-          sizes="100vw"
-          width={hero.cover.width}
-          height={hero.cover.height}
-          alt=""
-          loading="lazy"
-          decoding="async"
-        />
+        <!-- 模糊回响层：同图 blur(48px) 化入黑色背景（垫在照片与背景之间，用户修改） -->
+        <div class="about-echo" style={"background-image:url(" + aboutTail.cover.src + ")"}></div>
+        <div class="about-photo">
+          <img class="h-full w-full scale-110 object-cover opacity-30 blur-2xl" src={aboutTail.cover.blur} alt="" loading="lazy" decoding="async" />
+          <img
+            class="absolute inset-0 h-full w-full object-cover opacity-25"
+            src={aboutTail.cover.src}
+            srcset={aboutTail.cover.srcset}
+            sizes="100vw"
+            width={aboutTail.cover.width}
+            height={aboutTail.cover.height}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
       </div>
       <div class="relative z-10 flex min-h-svh flex-col items-center justify-center px-6 py-28 text-center" data-about-copy>
         <p class="label text-fog">关于 · About</p>
-        <h2 class="display-title mt-6 max-w-3xl text-4xl leading-[1.15] sm:text-6xl">用镜头记录<br />时间与地点<span class="text-accent">——HAN</span></h2>
+        <h2 class="display-title mt-6 max-w-3xl text-4xl leading-[1.15] sm:text-6xl">用镜头记录<br />世界的美<span class="text-accent">——HAN</span></h2>
         <p class="mt-8 max-w-md text-sm leading-relaxed text-white/65">{site.bio}</p>
         <a href={"mailto:" + site.email} class="label mt-10 leading-relaxed text-fog transition-colors duration-300 hover:text-accent">
           Email — {site.email}
@@ -1003,10 +1010,23 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
       background: radial-gradient(120% 90% at 50% 30%, #15130f 0%, #0b0b0a 58%, #0b0b0a 100%);
     }
 
-    /* About 呼应照片底部 mask 渐隐：消除照片与背景的硬切边界（不截断上部主体） */
-    [data-about-img] {
-      -webkit-mask-image: linear-gradient(to bottom, black 0%, black 52%, transparent 96%);
-      mask-image: linear-gradient(to bottom, black 0%, black 52%, transparent 96%);
+    /* About 尾图化入背景（用户修改）：照片层底部渐隐（上 55% 不透明 → 下透明）；
+       模糊回响层垫底（transparent 40% → black），形成照片「化入」黑色背景的模糊过渡 */
+    .about-photo {
+      position: absolute;
+      inset: 0;
+      -webkit-mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 100%);
+      mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 100%);
+    }
+    .about-echo {
+      position: absolute;
+      inset: -8%; /* 溢出一点，避免模糊边缘生硬 */
+      background-size: cover;
+      background-position: center;
+      filter: blur(48px) saturate(0.85);
+      opacity: 0.6;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 40%, black 100%);
+      mask-image: linear-gradient(to bottom, transparent 40%, black 100%);
     }
 
     /* 呼吸段超大年份水印：mono、静态、近不可见（打破空旷但不抢焦点） */
