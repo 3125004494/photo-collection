@@ -1,0 +1,51 @@
+---
+// Profile 浮层：居中简介 + 邮箱（低调呈现，默认隐藏）
+// M2：GSAP 过渡（淡入 + 上移），监听 profile:toggle 事件
+import site from "../data/site.json";
+---
+<div class="fixed inset-0 z-50 items-center justify-center px-8" data-profile>
+  <div class="absolute inset-0 bg-ink/60 backdrop-blur-sm" data-profile-backdrop></div>
+  <div class="pointer-events-auto relative max-w-[34rem] text-center" data-profile-panel>
+    <p class="text-sm leading-relaxed tracking-[-0.02em] text-white/90">{site.bio}</p>
+    <div class="mt-8 flex items-center justify-center gap-8">
+      <a href={"mailto:" + site.email} class="label text-white/50 transition-colors duration-300 hover:text-white">Email</a>
+      <button type="button" class="label text-white/50 transition-colors duration-300 hover:text-white" data-profile-close>Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { gsap } from "gsap";
+
+  const overlay = document.querySelector("[data-profile]");
+  const panel = document.querySelector("[data-profile-panel]");
+  const backdrop = document.querySelector("[data-profile-backdrop]");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let open = false;
+
+  function show() {
+    if (!overlay || open) return;
+    open = true;
+    overlay.style.display = "flex";
+    if (reduceMotion) return;
+    gsap.fromTo(panel, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" });
+    gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: 0.35 });
+  }
+  function hide() {
+    if (!overlay || !open) return;
+    open = false;
+    const done = () => { overlay.style.display = "none"; };
+    if (reduceMotion) { done(); return; }
+    gsap.to(panel, { opacity: 0, y: 12, duration: 0.28, ease: "power2.in", onComplete: done });
+    gsap.to(backdrop, { opacity: 0, duration: 0.25 });
+  }
+
+  window.addEventListener("profile:toggle", () => (open ? hide() : show()));
+  overlay?.querySelector("[data-profile-close]")?.addEventListener("click", hide);
+  overlay?.addEventListener("click", (e) => {
+    if (e.target === overlay) hide(); // 点遮罩关闭
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hide();
+  });
+</script>

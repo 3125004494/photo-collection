@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+/* ===== 设计 token（审查 v2：统一中文无衬线体系，字重/字宽营造层次）===== */
+@theme {
+  --color-ink: #000000;
+  --color-paper: #ffffff;
+  /* 一套有字重与字宽变化的中文无衬线体系（系统字体，零加载成本） */
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+  --tracking-display: -0.05em;   /* 大标题紧凑字距 */
+  --tracking-label: -0.02em;     /* label 小字 */
+  --radius-card: 1.5rem;
+}
+
+html, body {
+  background: #000;
+  color: #fff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 小字号 label（导航/辅助文字）：低调、紧凑 */
+.label {
+  font-size: 0.75rem;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+/* 描边文字：白描边（首页黑底放映台标题用，接近中心时填充为实心） */
+.stroke-text {
+  -webkit-text-stroke: 1.5px #fff;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Profile 浮层：默认隐藏，is-open 显示 */
+[data-profile] { display: none; }
+[data-profile].is-open { display: flex; }
+
+/* ===== 首页：摄影放映台（审查 v2）===== */
+/* 横向舞台：大留白（40vw）让首张主卡也能居中；隐藏滚动条；可拖拽 */
+.timeline { scrollbar-width: none; cursor: grab; user-select: none; }
+.timeline::-webkit-scrollbar { display: none; }
+.timeline.grabbing { cursor: grabbing; }
+
+/* 放映台卡片：主卡焦点 + 两侧缩退（scale/opacity 由 JS 按距中心距离驱动）*/
+.stage-card {
+  height: 52vh;
+  max-height: 44rem;
+  will-change: transform, opacity;
+}
+/* 卡片标题（Q5）：实心白字 + 低对比→高对比的聚焦填充（保留「文字填充」签名，避免 CJK 小字号描边糊连）*/
+.stage-title {
+  color: rgba(255, 255, 255, 0.42);
+  transition: color 0.45s ease, opacity 0.45s ease;
+}
+.stage-card.is-focus .stage-title {
+  color: #fff;
+}
+/* 卡片日期小字（Q3）：主卡可见，缩退卡淡出 */
+.stage-date {
+  color: rgba(255, 255, 255, 0);
+  transition: color 0.45s ease;
+}
+.stage-card.is-focus .stage-date {
+  color: rgba(255, 255, 255, 0.55);
+}
+/* 通用圆形按钮（主页进入按钮 / 详情页关闭按钮共用）：
+   黑色圆形 + 白色图标；hover 时白色圆圈自中心扩散至整个按钮，图标反色变黑 */
+.circle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: #000;
+  color: #fff;
+  overflow: hidden; /* 白色圆圈扩散时裁剪在按钮内 */
+  transition: transform 0.3s ease;
+}
+.circle-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #fff;
+  transform: scale(0);
+  /* 中心扩散 + 轻微 overshoot 的渐入 */
+  transition: transform 0.5s cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+.circle-btn:hover { transform: scale(1.06); }
+.circle-btn:hover::before { transform: scale(1); }
+.circle-btn svg {
+  position: relative;
+  z-index: 1;
+  stroke: currentColor;
+  transition: color 0.3s ease;
+}
+.circle-btn:hover svg { color: #000; }
+@media (min-width: 640px) {
+  .circle-btn { width: 2.75rem; height: 2.75rem; }
+}
+
+/* 卡片进入按钮定位（样式本体在 .circle-btn） */
+.stage-enter {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 10;
+}
+@media (min-width: 640px) {
+  .stage-enter { right: 1.25rem; bottom: 1.25rem; }
+}
+
+/* 底部渐变遮罩：保证任何照片背景下文字可读 */
+.stage-card::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 45%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+  pointer-events: none;
+}
+/* 年份刻度标签（Q3） */
+.scale-year {
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.3);
+  margin-inline: 0.35rem;
+}
+
+/* 时间刻度：低对比点阵，当前影集高亮 */
+.scale-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+.scale-dot.is-active {
+  background: #fff;
+  transform: scale(1.6);
+}
+
+/* ===== 详情页图片流（审查 v2：去之字形，横图转场 / 竖图停顿）===== */
+.gallery-figure {
+  display: flex;
+  justify-content: center;
+  margin-block: 2.5rem;
+}
+/* 横图：段落转场——宽幅（88%）+ 前后大留白 */
+.gallery-figure--wide {
+  width: 88%;
+  margin-block: 4.5rem;
+}
+/* 竖图：停顿——限宽（46%）靠右，且右边界与横图（88% 居中，右边距 6%）对齐 */
+.gallery-figure--tall {
+  width: 46%;
+  margin-block: 4rem;
+  margin-left: auto;
+  margin-right: 6%; /* (100% - 88%) / 2 = 6% */
+}
+/* 等比缩小（宽高双约束 + object-fit 兜底，绝不拉伸/裁切） */
+.gallery-figure img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+@media (min-width: 640px) {
+  /* 66vh：让 4:3 横图（88% 宽）填满 figure，右边界精确落在 6% 与竖图对齐；
+     此前 58vh 使横图 img 收窄、右缘偏移约 46px */
+  .gallery-figure--wide img { max-height: 66vh; }
+  .gallery-figure--tall img { max-height: 80vh; }
+}
+@media (max-width: 639px) {
+  .gallery-figure { margin-block: 2rem; }
+  .gallery-figure--wide { width: 100%; margin-block: 2.5rem; }
+  .gallery-figure--tall { width: 85%; margin-block: 2.5rem; margin-left: auto; margin-right: 0; }
+  .gallery-figure--tall img { max-height: 86vh; }
+}
+
+/* 键盘焦点可见（P1-2）：currentColor 让黑底白字/白底黑字都可见 */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ===== 详情面板（Q2：SPA 式覆盖层）===== */
+.gallery-panel { display: none; }
+.gallery-panel.is-open { display: flex; }
+.gallery-panel .panel-scroller:focus-visible {
+  outline-offset: -3px;
+}
+
+/* ===== 灯箱（Q4：全屏看大图）===== */
+.lightbox { display: none; }
+.lightbox.is-open { display: flex; }

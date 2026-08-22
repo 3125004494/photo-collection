@@ -1,0 +1,50 @@
+---
+// 加载动画：全屏黑遮罩 + 三根加载条（参考站结构）
+// 流程：bar 依次填充 → 遮罩淡出 → 派发 app:loaded 事件（主页入场动画监听）
+// prefers-reduced-motion 用户直接跳过
+---
+<div class="fixed inset-0 z-99 bg-ink" data-loader aria-hidden="true">
+  <div class="absolute inset-0 flex items-center justify-center">
+    <div class="flex gap-2">
+      <div class="bar h-2 w-16 rounded-full bg-white/40"></div>
+      <div class="bar h-2 w-16 rounded-full bg-white/60"></div>
+      <div class="bar h-2 w-16 rounded-full bg-white/80"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { gsap } from "gsap";
+
+  const loader = document.querySelector("[data-loader]");
+  const bars = loader?.querySelectorAll(".bar");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // 同会话已播放过加载动画（MPA 跳转）→ 静默移除，不再黑屏
+  const alreadyPlayed = sessionStorage.getItem("pc-loaded") === "1";
+
+  // 页面已加载完成：播放动画或直接退出
+  async function finish() {
+    if (!loader) return;
+    if (reduceMotion || alreadyPlayed) {
+      if (!alreadyPlayed) sessionStorage.setItem("pc-loaded", "1");
+      loader.remove();
+      window.dispatchEvent(new CustomEvent("app:loaded"));
+      return;
+    }
+    sessionStorage.setItem("pc-loaded", "1");
+    // bar 依次从左到右填充（宽度动画）
+    const tl = gsap.timeline({ onComplete: () => {
+      // 遮罩淡出并移除，通知页面播放入场动画
+      window.dispatchEvent(new CustomEvent("app:loaded"));
+      loader.remove();
+    }});
+    tl.fromTo(bars, { scaleX: 0 }, { scaleX: 1, duration: 0.5, stagger: 0.18, ease: "power2.inOut", transformOrigin: "left center" })
+      .to(loader, { opacity: 0, duration: 0.45, ease: "power2.out" }, "+=0.15");
+  }
+
+  if (document.readyState === "complete") {
+    finish();
+  } else {
+    window.addEventListener("load", finish, { once: true });
+  }
+</script>

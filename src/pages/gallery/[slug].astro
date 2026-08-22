@@ -1,0 +1,164 @@
+---
+// 详情页：白色画册面板（审查 v2）
+// - 不继承首页导航（Base nav=false），只保留 返回 / 影集序号 / 前后切换
+// - 图片流去之字形：横图宽幅段落转场，竖图限宽停顿（大留白）
+// - 大标题：无衬线粗黑实心（不再衬线描边）
+import Base from "../../layouts/Base.astro";
+import { albums } from "../../data/albums";
+
+export function getStaticPaths() {
+  return albums.map((a) => ({ params: { slug: a.slug }, props: { album: a } }));
+}
+
+const { album } = Astro.props;
+const idx = albums.findIndex((a) => a.slug === album.slug);
+const prev = idx > 0 ? albums[idx - 1] : null;   // 时间线上一组（更早）
+const next = idx < albums.length - 1 ? albums[idx + 1] : null;
+const fmtDate = (d: string) => d.replace(/^(\d{4})-0?(\d{1,2})-0?(\d{1,2})$/, "$1.$2.$3"); // ISO → 展示格式 2026.5.18
+
+// 主题文字：从标题剥离「YYYY.M.D」时间前缀，凸显主题
+const themeTitle = album.title.replace(/^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d{1,2})?\s*/, "").trim() || album.title;
+const seq = String(idx + 1).padStart(2, "0") + " / " + String(albums.length).padStart(2, "0"); // 影集序号
+---
+<Base title={album.title + " — HAN"} nav={false}>
+  <main class="fixed inset-0 z-20 overflow-hidden">
+    <div class="absolute inset-3 flex flex-col overflow-hidden rounded-3xl bg-white text-black sm:inset-6 sm:flex-row" data-sheet>
+      <!-- 左侧信息栏 -->
+      <aside class="flex shrink-0 flex-col justify-between gap-8 overflow-y-auto p-6 sm:w-80 sm:p-10">
+        <div>
+          <!-- 序号（小字）+ 主题（粗黑无衬线大字）+ 时间（更小更淡） -->
+          <p class="text-[0.625rem] uppercase tracking-[0.18em] text-black/35">{seq}</p>
+          <h1 class="mt-3 text-4xl font-extrabold leading-none tracking-[-0.04em] sm:text-5xl">{themeTitle}</h1>
+          {
+            album.date && (
+              <p class="mt-6 text-[0.625rem] uppercase tracking-[0.18em] text-black/35">{fmtDate(album.date)}</p>
+            )
+          }
+          {
+            album.location && themeTitle !== album.location && (
+              <p class="mt-2 text-sm tracking-[0.04em] text-black/80">{album.location}</p>
+            )
+          }
+          {
+            album.description && (
+              <p class="mt-8 max-w-[30rem] text-sm leading-relaxed text-black/70">{album.description}</p>
+            )
+          }
+        </div>
+        <nav class="flex flex-col gap-3 text-sm tracking-[-0.02em]">
+          {prev && <a href={"/gallery/" + prev.slug} class="opacity-50 transition-opacity duration-300 hover:opacity-100" data-nav data-dir="right">← {prev.title}</a>}
+          {next && <a href={"/gallery/" + next.slug} class="opacity-50 transition-opacity duration-300 hover:opacity-100" data-nav data-dir="left">{next.title} →</a>}
+        </nav>
+      </aside>
+
+      <!-- 右侧图片流：横图段落转场 / 竖图停顿 -->
+      <div class="flex-1 overflow-y-auto px-4 py-10 sm:px-10" data-scroller tabindex="0" role="region" aria-label="照片列表（可滚动）">
+        <div class="mx-auto flex max-w-[56rem] flex-col">
+          {
+            album.photos.map((p, i) => {
+              const isPortrait = p.width < p.height;
+              const cls = "gallery-figure" + (isPortrait ? " gallery-figure--tall" : " gallery-figure--wide");
+              return (
+                <figure class={cls} data-figure>
+                  <img
+                    src={p.src}
+                    width={p.width}
+                    height={p.height}
+                    loading={i === 0 ? "eager" : "lazy"}
+                    decoding="async"
+                    class="h-auto w-full"
+                    style={"aspect-ratio:" + p.width + "/" + p.height}
+                    alt={album.title + " " + (i + 1)}
+                  />
+                </figure>
+              );
+            })
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- 右上角关闭按钮（返回首页） -->
+    <a href="/" class="circle-btn absolute right-4 top-4 z-10 sm:right-[26px] sm:top-[26px]" aria-label="关闭并返回首页" data-close>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.5"/></svg>
+    </a>
+  </main>
+</Base>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  gsap.registerPlugin(ScrollTrigger);
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sheet = document.querySelector("[data-sheet]");
+  const figures = Array.from(document.querySelectorAll("[data-figure]"));
+
+  // ---- 1) 画册面板入场（遮罩揭示类动效）----
+  // P1-3：等待 Loader 派发 app:loaded 后再播，否则首访被黑幕盖住、动画白播
+  function playIntro() {
+    if (sheet && !reduceMotion) {
+      gsap.from(sheet, { y: 56, opacity: 0, duration: 0.7, ease: "power3.out" });
+    }
+  }
+  window.addEventListener("app:loaded", playIntro, { once: true });
+
+  // ---- 2) 图片滚动入场（滚动位移类动效，once 不反复）----
+  // 注意：滚动发生在内部容器（data-scroller），必须指定 scroller
+  const scroller = document.querySelector("[data-scroller]");
+  if (sheet && scroller && !reduceMotion) {
+    gsap.set(figures, { opacity: 0, y: 36 });
+    figures.forEach((fig) => {
+      ScrollTrigger.create({
+        trigger: fig,
+        scroller: scroller,
+        start: "top 88%",
+        once: true,
+        onEnter: () => {
+          gsap.to(fig, { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" });
+        },
+      });
+    });
+  }
+
+  // ---- 3) 键盘滚动图片流（P1-2）：方向键/翻页/Home/End ----
+  if (scroller) {
+    scroller.addEventListener("keydown", (e) => {
+      const step = () => scroller.clientHeight * 0.8;
+      switch (e.key) {
+        case "ArrowDown": case "PageDown":
+          e.preventDefault(); scroller.scrollBy({ top: step(), behavior: "smooth" }); break;
+        case "ArrowUp": case "PageUp":
+          e.preventDefault(); scroller.scrollBy({ top: -step(), behavior: "smooth" }); break;
+        case "Home":
+          e.preventDefault(); scroller.scrollTo({ top: 0, behavior: "smooth" }); break;
+        case "End":
+          e.preventDefault(); scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" }); break;
+      }
+    });
+  }
+
+  // ---- 4) 前后切换与关闭：GSAP 过渡后跳转 ----
+  function go(url: string, dir: "left" | "right" | "up") {
+    if (!sheet || reduceMotion) { location.href = url; return; }
+    gsap.to(sheet, {
+      x: dir === "left" ? -80 : dir === "right" ? 80 : 0,
+      y: dir === "up" ? -48 : 0,
+      opacity: 0,
+      duration: 0.38,
+      ease: "power2.in",
+      onComplete: () => { location.href = url; },
+    });
+  }
+  document.querySelectorAll("[data-nav]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      const href = el.getAttribute("href");
+      if (href) go(href, el.dataset.dir as "left" | "right");
+    });
+  });
+  document.querySelector("[data-close]")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    go("/", "up");
+  });
+</script>

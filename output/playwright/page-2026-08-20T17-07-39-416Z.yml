@@ -1,0 +1,89 @@
+- generic [active]:
+  - generic:
+    - generic:
+      - link "HAN" [ref=f3e1] [cursor=pointer]:
+        - /url: /
+      - button "Profile" [ref=f3e2]
+    - generic:
+      - paragraph: Scroll — 时间线
+  - main [ref=f3e3]:
+    - generic [ref=f3e4]:
+      - complementary [ref=f3e5]:
+        - generic [ref=f3e6]:
+          - heading "南京·毕业旅行" [level=1] [ref=f3e7]
+          - paragraph [ref=f3e8]: 2025.7.5
+        - navigation [ref=f3e9]:
+          - link "← 2025.1.27 汕头·on the road" [ref=f3e10] [cursor=pointer]:
+            - /url: /gallery/2025-01-27
+          - link "2025.11.23 广州·老爷车展 →" [ref=f3e11] [cursor=pointer]:
+            - /url: /gallery/2025-11-23
+      - generic [ref=f3e13]:
+        - figure [ref=f3e14]:
+          - img "2025.7.5-8 南京·毕业旅行 1" [ref=f3e15]
+        - figure [ref=f3e16]:
+          - img "2025.7.5-8 南京·毕业旅行 2" [ref=f3e17]
+        - figure [ref=f3e18]:
+          - img "2025.7.5-8 南京·毕业旅行 3" [ref=f3e19]
+        - figure [ref=f3e20]:
+          - img "2025.7.5-8 南京·毕业旅行 4" [ref=f3e21]
+        - figure [ref=f3e22]:
+          - img "2025.7.5-8 南京·毕业旅行 5" [ref=f3e23]
+        - figure [ref=f3e24]:
+          - img "2025.7.5-8 南京·毕业旅行 6" [ref=f3e25]
+        - figure [ref=f3e26]:
+          - img "2025.7.5-8 南京·毕业旅行 7" [ref=f3e27]
+        - figure [ref=f3e28]:
+          - img "2025.7.5-8 南京·毕业旅行 8" [ref=f3e29]
+        - figure [ref=f3e30]:
+          - img "2025.7.5-8 南京·毕业旅行 9" [ref=f3e31]
+        - figure [ref=f3e32]:
+          - img "2025.7.5-8 南京·毕业旅行 10" [ref=f3e33]
+        - figure [ref=f3e34]:
+          - img "2025.7.5-8 南京·毕业旅行 11" [ref=f3e35]
+        - figure [ref=f3e36]:
+          - img "2025.7.5-8 南京·毕业旅行 12" [ref=f3e37]
+        - figure [ref=f3e38]:
+          - img "2025.7.5-8 南京·毕业旅行 13" [ref=f3e39]
+        - figure [ref=f3e40]:
+          - img "2025.7.5-8 南京·毕业旅行 14" [ref=f3e41]
+        - figure [ref=f3e42]:
+          - img "2025.7.5-8 南京·毕业旅行 15" [ref=f3e43]
+        - figure [ref=f3e44]:
+          - img "2025.7.5-8 南京·毕业旅行 16" [ref=f3e45]
+        - figure [ref=f3e46]:
+          - img "2025.7.5-8 南京·毕业旅行 17" [ref=f3e47]
+        - figure [ref=f3e48]:
+          - img "2025.7.5-8 南京·毕业旅行 18" [ref=f3e49]
+        - figure [ref=f3e50]:
+          - img "2025.7.5-8 南京·毕业旅行 19" [ref=f3e51]
+        - figure [ref=f3e52]:
+          - img "2025.7.5-8 南京·毕业旅行 20" [ref=f3e53]
+        - figure [ref=f3e54]:
+          - img "2025.7.5-8 南京·毕业旅行 21" [ref=f3e55]
+        - figure [ref=f3e56]:
+          - img "2025.7.5-8 南京·毕业旅行 22" [ref=f3e57]
+        - figure [ref=f3e58]:
+          - img "2025.7.5-8 南京·毕业旅行 23" [ref=f3e59]
+        - figure [ref=f3e60]:
+          - img "2025.7.5-8 南京·毕业旅行 24" [ref=f3e61]
+        - figure [ref=f3e62]:
+          - img "2025.7.5-8 南京·毕业旅行 25" [ref=f3e63]
+        - figure [ref=f3e64]:
+          - img "2025.7.5-8 南京·毕业旅行 26" [ref=f3e65]
+        - figure [ref=f3e66]:
+          - img "2025.7.5-8 南京·毕业旅行 27" [ref=f3e67]
+        - figure [ref=f3e68]:
+          - img "2025.7.5-8 南京·毕业旅行 28" [ref=f3e69]
+        - figure [ref=f3e70]:
+          - img "2025.7.5-8 南京·毕业旅行 29" [ref=f3e71]
+        - figure:
+          - img "2025.7.5-8 南京·毕业旅行 30"
+        - figure:
+          - img "2025.7.5-8 南京·毕业旅行 31"
+    - link "关闭并返回首页" [ref=f3e72] [cursor=pointer]:
+      - /url: /
+  - generic [ref=f3e77]:
+    - button [ref=f3e78]
+    - button [ref=f3e84]
+    - button [ref=f3e88]
+    - button [ref=f3e93]

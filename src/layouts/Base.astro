@@ -1,0 +1,28 @@
+---
+// 全局布局：黑底沉浸式 + 悬浮导航层 + Profile 浮层 + 加载动画（M2 接入 GSAP）
+import NavLayer from "../components/NavLayer.astro";
+import ProfileOverlay from "../components/ProfileOverlay.astro";
+import Loader from "../components/Loader.astro";
+import site from "../data/site.json";
+import "../styles/global.css";
+
+// nav=false：详情页使用——不渲染首页专属的导航层/Profile（审查：详情页只保留返回/序号/前后切换）
+interface Props { title?: string; nav?: boolean; }
+const { title = site.name, nav = true } = Astro.props;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={site.description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body class="bg-ink text-white">
+    <Loader />
+    {nav && <NavLayer />}
+    {nav && <ProfileOverlay />}
+    <slot />
+  </body>
+</html>

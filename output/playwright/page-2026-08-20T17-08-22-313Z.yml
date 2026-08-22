@@ -1,0 +1,54 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - generic:
+      - main [ref=e2]:
+        - generic [ref=e3]:
+          - article [ref=e4] [cursor=pointer]:
+            - paragraph:
+              - generic: Nathan Riley
+          - article [ref=e5] [cursor=pointer]:
+            - paragraph:
+              - generic: Casa Di Solare
+          - article [ref=e6] [cursor=pointer]:
+            - paragraph:
+              - generic: The Lookback
+          - article [ref=e7] [cursor=pointer]:
+            - paragraph:
+              - generic: Book of Happiness
+          - article [ref=e8] [cursor=pointer]:
+            - paragraph:
+              - generic: Dogelon Mars
+          - article [ref=e9] [cursor=pointer]:
+            - paragraph:
+              - generic: Gil Huybrecht
+          - article [ref=e10] [cursor=pointer]:
+            - paragraph:
+              - generic: Discoveryland
+          - article [ref=e11] [cursor=pointer]:
+            - paragraph:
+              - generic: Griflan
+      - generic:
+        - generic:
+          - paragraph: Jesper Landberg, Swedish design engineer, named Awwwards Independent of the Year in 2022 and 2024, building visually rich, motion-driven websites. Usually lead or sole developer, responsible for front-end architecture, animation, interaction and CMS, alongside international agencies and creative teams.
+          - paragraph: 74 awards — 30× Awwwards, 37× FWA, 3× Webby, 2× Lovie
+          - list:
+            - listitem:
+              - link "Instagram" [ref=e12] [cursor=pointer]:
+                - /url: https://www.instagram.com/jesperlandberg222/
+            - listitem:
+              - link "LinkedIn" [ref=e13] [cursor=pointer]:
+                - /url: https://www.linkedin.com/in/jesper-landberg-ba2984256/
+            - listitem:
+              - link "Email" [ref=e14] [cursor=pointer]:
+                - /url: mailto:jesper@alpacka.studio
+      - generic:
+        - generic:
+          - link "Landberg, Jesper" [ref=e15] [cursor=pointer]:
+            - /url: /
+          - button "Profile" [ref=e16] [cursor=pointer]
+        - navigation "Project views" [ref=e17]:
+          - link "Featured" [ref=e18] [cursor=pointer]:
+            - /url: /
+          - generic [ref=e19]: /
+          - link "Full" [ref=e20] [cursor=pointer]:
+            - /url: /full

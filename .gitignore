@@ -1,0 +1,15 @@
+# 依赖与构建产物
+node_modules/
+dist/
+.astro/
+
+# 用户照片原图库（不进 git，铁律）
+album/
+
+# 项目级技能（环境配置）
+.agents/
+
+# 本地临时
+.tmp*/
+*.log
+.DS_Store

@@ -1,0 +1,20 @@
+---
+// 全局悬浮导航层：左上站名、右上 Profile、底部提示——低调小字，不干扰视觉（AGENTS.md §5 UI 低调原则）
+---
+<div class="pointer-events-none fixed inset-0 z-40 flex flex-col justify-between px-6 py-4 text-white sm:px-10 sm:py-6">
+  <div class="flex items-start justify-between">
+    <a href="/" class="label pointer-events-auto opacity-80 transition-opacity duration-300 hover:opacity-100">HAN</a>
+    <button type="button" class="label pointer-events-auto opacity-80 transition-opacity duration-300 hover:opacity-100" data-profile-open>Profile</button>
+  </div>
+  <div class="flex justify-center sm:justify-start">
+    <p class="label opacity-30">Scroll — 时间线</p>
+  </div>
+</div>
+
+<script>
+  // Profile 开关：只派发事件，动画由 ProfileOverlay 统一处理（M2）
+  const openBtn = document.querySelector("[data-profile-open]");
+  openBtn?.addEventListener("click", () => {
+    window.dispatchEvent(new CustomEvent("profile:toggle"));
+  });
+</script>

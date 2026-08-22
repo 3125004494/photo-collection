@@ -1,0 +1,54 @@
+- generic [active] [ref=e1] [box=0,0,1280,720]:
+  - generic [box=0,0,1280,0]:
+    - generic [box=0,0,1280,0]:
+      - main [ref=e2] [box=0,0,1280,720]:
+        - generic [ref=e3] [box=0,203,1280,313]:
+          - article [ref=e4] [cursor=pointer] [box=-182,203,547,313]:
+            - paragraph [box=-165,487,513,22]:
+              - generic [box=-165,487,83,22]: Nathan Riley
+          - article [ref=e5] [cursor=pointer] [box=374,203,533,313]:
+            - paragraph [box=391,487,499,22]:
+              - generic [box=391,487,95,22]: Casa Di Solare
+          - article [ref=e6] [cursor=pointer] [box=915,203,544,313]:
+            - paragraph [box=932,487,510,22]:
+              - generic [box=932,487,93,22]: The Lookback
+          - article [ref=e7] [cursor=pointer] [box=1467,203,576,313]:
+            - paragraph [box=1484,487,542,22]:
+              - generic [box=1484,487,123,22]: Book of Happiness
+          - article [ref=e8] [cursor=pointer] [box=2051,203,478,313]:
+            - paragraph [box=2068,487,444,22]:
+              - generic [box=2068,487,94,22]: Dogelon Mars
+          - article [ref=e9] [cursor=pointer] [box=2538,203,520,313]:
+            - paragraph [box=2555,487,486,22]:
+              - generic [box=2555,487,90,22]: Gil Huybrecht
+          - article [ref=e10] [cursor=pointer] [box=3067,203,418,313]:
+            - paragraph [box=3084,487,383,22]:
+              - generic [box=3084,487,93,22]: Discoveryland
+          - article [ref=e11] [cursor=pointer] [box=3493,203,505,313]:
+            - paragraph [box=3510,487,471,22]:
+              - generic [box=3510,487,43,22]: Griflan
+      - generic [box=384,360,512,0]:
+        - generic [box=401,281,478,159]:
+          - paragraph [box=448,281,384,84]: Jesper Landberg, Swedish design engineer, named Awwwards Independent of the Year in 2022 and 2024, building visually rich, motion-driven websites. Usually lead or sole developer, responsible for front-end architecture, animation, interaction and CMS, alongside international agencies and creative teams.
+          - paragraph [box=504,390,272,12]: 74 awards — 30× Awwwards, 37× FWA, 3× Webby, 2× Lovie
+          - list [box=560,427,159,12]:
+            - listitem [box=560,427,54,12]:
+              - link "Instagram" [ref=e12] [cursor=pointer] [box=560,427,54,12]:
+                - /url: https://www.instagram.com/jesperlandberg222/
+            - listitem [box=632,427,42,12]:
+              - link "LinkedIn" [ref=e13] [cursor=pointer] [box=632,427,42,12]:
+                - /url: https://www.linkedin.com/in/jesper-landberg-ba2984256/
+            - listitem [box=691,427,28,12]:
+              - link "Email" [ref=e14] [cursor=pointer] [box=691,427,28,12]:
+                - /url: mailto:jesper@alpacka.studio
+      - generic [box=0,0,1280,720]:
+        - generic [box=68,34,1143,12]:
+          - link "Landberg, Jesper" [ref=e15] [cursor=pointer] [box=68,34,88,12]:
+            - /url: /
+          - button "Profile" [ref=e16] [cursor=pointer] [box=1174,34,38,12]
+        - navigation "Project views" [ref=e17] [box=68,674,81,12]:
+          - link "Featured" [ref=e18] [cursor=pointer] [box=68,674,47,12]:
+            - /url: /
+          - generic [ref=e19] [box=120,674,4,12]: /
+          - link "Full" [ref=e20] [cursor=pointer] [box=128,674,22,12]:
+            - /url: /full

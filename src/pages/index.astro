@@ -1,0 +1,390 @@
+---
+// 首页：摄影放映台 v3（挑衅问题重构）
+// Q1 焦点纵深 · Q2 主页内嵌详情面板（SPA 式，无跳转）· Q3 日期回归+年份刻度 · Q4 全屏灯箱 · Q5 实心标题
+import Base from "../layouts/Base.astro";
+import { albums } from "../data/albums";
+const covers = albums;
+const yearOf = (d: string | null) => (d ? d.slice(0, 4) : null);
+const themeOf = (t: string) => t.replace(/^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d{1,2})?\s*/, "").trim() || t;
+const fmtDate = (d: string) => d.replace(/^(\d{4})-0?(\d{1,2})-0?(\d{1,2})$/, "$1.$2.$3");
+---
+<Base title="HAN — 摄影作品集">
+  <main class="fixed inset-0 overflow-hidden">
+    <!-- 放映台：横向舞台 -->
+    <div class="timeline flex h-full items-center gap-12 overflow-x-auto px-[40vw]" data-timeline>
+      {
+        covers.map((a, i) => (
+          <a
+            href={"/gallery/" + a.slug}
+            class="stage-card group relative flex-none overflow-hidden rounded-3xl"
+            data-card
+            data-slug={a.slug}
+            style={"aspect-ratio:" + a.cover.width + "/" + a.cover.height}
+          >
+            <img
+              src={a.cover.src}
+              srcset={"/albums/" + a.slug + "/cover-400.webp 400w, /albums/" + a.slug + "/cover-800.webp 800w, /albums/" + a.slug + "/cover-1200.webp 1200w"}
+              sizes="(min-width: 1024px) 46vw, 80vw"
+              width={a.cover.width}
+              height={a.cover.height}
+              loading={i === 0 ? "eager" : "lazy"}
+              decoding="async"
+              alt={a.title}
+              draggable={false}
+              class="h-full w-full object-cover"
+            />
+            <!-- 标题：实心 + 聚焦填充；日期小字（Q3/Q5）；位置上移至按钮之上 -->
+            <span class="stage-title absolute bottom-24 left-1/2 w-full -translate-x-1/2 whitespace-nowrap px-4 text-center text-lg tracking-[-0.05em] sm:text-xl">{themeOf(a.title)}</span>
+            {a.date && <span class="stage-date absolute bottom-20 left-1/2 w-full -translate-x-1/2 whitespace-nowrap px-4 text-center text-[0.625rem] tracking-[0.14em]">{fmtDate(a.date)}</span>}
+            <!-- 进入按钮：黑色圆形 + 白色右箭头，hover 白色扩散反色 -->
+            <span class="stage-enter circle-btn" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7H12M12 7L7 2M12 7L7 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </a>
+        ))
+      }
+    </div>
+
+    <!-- 时间刻度：年份分段（Q3） -->
+    <div class="absolute bottom-8 left-0 right-0 z-10 flex items-center justify-center gap-4" data-scale>
+      <div class="flex items-center">
+        {
+          covers.map((a, i) => {
+            const y = yearOf(a.date);
+            const yPrev = i > 0 ? yearOf(covers[i - 1].date) : null;
+            return (
+              <>
+                {y && y !== yPrev && <span class="scale-year">{y}</span>}
+                <span class="scale-dot" data-dot data-index={i}></span>
+              </>
+            );
+          })
+        }
+      </div>
+    </div>
+
+    <!-- 交互提示 -->
+    <p class="label absolute bottom-20 right-6 z-10 opacity-25 sm:right-10">拖拽 · 滚轮 · 点击进入</p>
+  </main>
+
+  <!-- ===== 详情面板（Q2：SPA 式覆盖层，骨架由 JS 填充）===== -->
+  <div class="gallery-panel fixed inset-0 z-50" data-panel aria-hidden="true">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-panel-backdrop></div>
+    <div class="absolute inset-2 flex flex-col overflow-hidden rounded-3xl bg-white text-black sm:inset-6 sm:flex-row" data-panel-sheet>
+      <aside class="flex shrink-0 flex-col justify-between gap-8 overflow-y-auto p-6 sm:w-80 sm:p-10" data-panel-aside></aside>
+      <div class="flex-1 overflow-y-auto px-4 py-10 sm:px-10" data-panel-scroller tabindex="0" role="region" aria-label="照片列表（可滚动）">
+        <div class="mx-auto flex max-w-[56rem] flex-col" data-panel-photos></div>
+      </div>
+    </div>
+    <!-- 右上角关闭 -->
+    <button type="button" class="circle-btn absolute right-4 top-4 z-10 sm:right-[26px] sm:top-[26px]" data-panel-close aria-label="关闭并返回">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.5"/></svg>
+    </button>
+  </div>
+
+  <!-- ===== 灯箱（Q4：全屏看大图）===== -->
+  <div class="lightbox fixed inset-0 z-[70] items-center justify-center bg-black" data-lightbox aria-hidden="true">
+    <img data-lightbox-img class="max-h-full max-w-full object-contain" alt="照片大图" />
+    <button type="button" class="absolute right-5 top-5 inline-flex size-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25" data-lightbox-close aria-label="关闭大图">✕</button>
+    <button type="button" class="absolute left-4 top-1/2 -translate-y-1/2 inline-flex size-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25" data-lightbox-prev aria-label="上一张">←</button>
+    <button type="button" class="absolute right-4 top-1/2 -translate-y-1/2 inline-flex size-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/25" data-lightbox-next aria-label="下一张">→</button>
+    <span class="label absolute bottom-6 left-1/2 -translate-x-1/2 text-white/60" data-lightbox-count></span>
+  </div>
+</Base>
+
+<!-- 影集数据（JSON 内联，供客户端面板渲染；转义 < 防注入） -->
+<script type="application/json" id="albums-data" set:html={JSON.stringify(albums).replace(/</g, "\u003c")}></script>
+<script>
+  import { gsap } from "gsap";
+
+  // 从数据块读取（module 脚本，defer 执行，数据块在前）
+  const albums = JSON.parse(document.getElementById("albums-data").textContent);
+
+  const timeline = document.querySelector("[data-timeline]");
+  const cards = timeline ? Array.from(timeline.querySelectorAll("[data-card]")) : [];
+  const dots = Array.from(document.querySelectorAll("[data-dot]"));
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const isTouch = window.matchMedia("(pointer: coarse)").matches;
+
+  // ================= 放映台焦点（Q1：两侧卡上浮纵深） =================
+  function updateStage() {
+    if (!timeline) return;
+    const cx = timeline.clientWidth / 2;
+    let nearest = 0, nearestD = Infinity;
+    cards.forEach((card, i) => {
+      const r = card.getBoundingClientRect();
+      const c = r.left + r.width / 2;
+      const d = Math.min(Math.abs(c - cx) / (timeline.clientWidth * 0.45), 1.6);
+      if (d < nearestD) { nearestD = d; nearest = i; }
+      if (reduceMotion) return;
+      const scale = 1 - 0.18 * Math.min(d, 1);
+      const opacity = 1 - 0.6 * Math.min(d, 1);
+      const y = -22 * Math.min(d, 1); // 两侧卡轻微上浮，制造舞台纵深
+      gsap.set(card, { scale, opacity, y });
+      card.classList.toggle("is-focus", d < 0.55);
+    });
+    dots.forEach((dot, i) => dot.classList.toggle("is-active", i === nearest));
+  }
+
+  function centerFirst() {
+    if (!timeline || cards.length === 0) return;
+    const first = cards[0];
+    const w = first.getBoundingClientRect().width;
+    timeline.scrollLeft = first.offsetLeft - (timeline.clientWidth - w) / 2;
+    if (timeline.scrollLeft < 0) timeline.scrollLeft = 0;
+  }
+  function restorePosition() {
+    const saved = sessionStorage.getItem("pc-pos");
+    if (saved && timeline && timeline.scrollWidth > Number(saved)) timeline.scrollLeft = Number(saved);
+    else centerFirst();
+  }
+
+  // ================= 详情面板（Q2：SPA 式） =================
+  const panel = document.querySelector("[data-panel]");
+  const aside = document.querySelector("[data-panel-aside]");
+  const scroller = document.querySelector("[data-panel-scroller]");
+  const photosBox = document.querySelector("[data-panel-photos]");
+  const sheet = document.querySelector("[data-panel-sheet]");
+  const backdrop = document.querySelector("[data-panel-backdrop]");
+  let currentSlug: string | null = null;
+  let observer: IntersectionObserver | null = null;
+  const fmtDate = (d: string) => d.replace(/^(\d{4})-0?(\d{1,2})-0?(\d{1,2})$/, "$1.$2.$3");
+  const themeOf = (t: string) => t.replace(/^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d{1,2})?\s*/, "").trim() || t;
+
+  function renderPanel(slug: string, dir: "left" | "right" | null) {
+    const a = albums.find((x) => x.slug === slug);
+    if (!a) return;
+    currentSlug = slug;
+    const idx = albums.findIndex((x) => x.slug === slug);
+    const prev = idx > 0 ? albums[idx - 1] : null;
+    const next = idx < albums.length - 1 ? albums[idx + 1] : null;
+    const seq = String(idx + 1).padStart(2, "0") + " / " + String(albums.length).padStart(2, "0");
+    const theme = themeOf(a.title);
+
+
+    // 左侧信息栏
+    aside.innerHTML =
+      '<div><p class="text-[0.625rem] uppercase tracking-[0.18em] text-black/35">' + seq + "</p>" +
+      '<h2 class="mt-3 text-4xl font-extrabold leading-none tracking-[-0.04em] sm:text-5xl">' + theme + "</h2>" +
+      (a.date ? '<p class="mt-6 text-[0.625rem] uppercase tracking-[0.18em] text-black/35">' + fmtDate(a.date) + "</p>" : "") +
+      (a.location && theme !== a.location ? '<p class="mt-2 text-sm tracking-[0.04em] text-black/80">' + a.location + "</p>" : "") +
+      (a.description ? '<p class="mt-8 max-w-[30rem] text-sm leading-relaxed text-black/70">' + a.description + "</p>" : "") +
+      "</div>" +
+      '<nav class="flex flex-col gap-3 text-sm tracking-[-0.02em]">' +
+      (prev ? '<a href="/gallery/' + prev.slug + '" class="opacity-50 transition-opacity duration-300 hover:opacity-100" data-panel-nav data-dir="right">← ' + prev.title + "</a>" : "") +
+      (next ? '<a href="/gallery/' + next.slug + '" class="opacity-50 transition-opacity duration-300 hover:opacity-100" data-panel-nav data-dir="left">' + next.title + " →</a>" : "") +
+      "</nav>";
+
+    // 照片流（Q4：点击开灯箱）
+    photosBox.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    a.photos.forEach((p, i) => {
+      const isPortrait = p.width < p.height;
+      const fig = document.createElement("figure");
+      fig.className = "gallery-figure" + (isPortrait ? " gallery-figure--tall" : " gallery-figure--wide");
+      const img = document.createElement("img");
+      img.src = p.src;
+      img.width = p.width;
+      img.height = p.height;
+      img.loading = i === 0 ? "eager" : "lazy";
+      img.decoding = "async";
+      img.alt = a.title + " " + (i + 1);
+      img.style.aspectRatio = p.width + "/" + p.height;
+      img.classList.add("h-auto", "w-full");
+      img.addEventListener("click", () => openLightbox(a.photos, i));
+      fig.appendChild(img);
+      frag.appendChild(fig);
+    });
+    photosBox.appendChild(frag);
+    scroller.scrollTop = 0;
+
+    // 图片渐显（IntersectionObserver，reduced-motion 直接显示）
+    observer?.disconnect();
+    const figs = Array.from(photosBox.querySelectorAll("figure"));
+    if (reduceMotion) {
+      figs.forEach((f) => { f.style.opacity = "1"; });
+    } else {
+      gsap.set(figs, { opacity: 0, y: 36 });
+      observer = new IntersectionObserver((entries) => {
+        entries.forEach((en) => {
+          if (en.isIntersecting) {
+            const f = en.target as HTMLElement;
+            gsap.to(f, { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" });
+            observer?.unobserve(f);
+          }
+        });
+      }, { root: scroller, threshold: 0.05 });
+      figs.forEach((f) => observer.observe(f));
+    }
+  }
+
+  function openPanel(slug: string, dir: "left" | "right" | null = null) {
+    if (!panel) return;
+    renderPanel(slug, dir);
+    panel.classList.add("is-open");
+    panel.setAttribute("aria-hidden", "false");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    if (!reduceMotion) {
+      gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: 0.35 });
+      gsap.fromTo(sheet, { y: 56, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power3.out" });
+    }
+  }
+  function closePanel() {
+    if (!panel || !panel.classList.contains("is-open")) return;
+    const done = () => {
+      panel.classList.remove("is-open");
+      panel.setAttribute("aria-hidden", "true");
+      observer?.disconnect();
+      currentSlug = null;
+    };
+    if (reduceMotion) { done(); return; }
+    gsap.to(backdrop, { opacity: 0, duration: 0.3 });
+    gsap.to(sheet, { y: 32, opacity: 0, duration: 0.32, ease: "power2.in", onComplete: done });
+  }
+  function switchPanel(slug: string, dir: "left" | "right") {
+    if (!sheet || reduceMotion) { renderPanel(slug, dir); return; }
+    // 旧内容滑出 → 渲染新内容 → 滑入
+    gsap.to(photosBox, { x: dir === "left" ? -40 : 40, opacity: 0, duration: 0.28, ease: "power2.in",
+      onComplete: () => {
+        photosBox.style.transform = "";
+        renderPanel(slug, dir);
+        gsap.fromTo(photosBox, { x: dir === "left" ? 40 : -40, opacity: 0 }, { x: 0, opacity: 1, duration: 0.38, ease: "power2.out" });
+      } });
+  }
+
+  // URL 同步（Q2）：pushState / popstate
+  function openFromCard(e: Event, card: HTMLElement) {
+    const slug = card.dataset.slug;
+    if (!slug) return;
+    e.preventDefault();
+    sessionStorage.setItem("pc-pos", String(timeline.scrollLeft));
+    history.pushState({ slug }, "", "/gallery/" + slug);
+    openPanel(slug);
+  }
+  window.addEventListener("popstate", (e) => {
+    const slug = e.state && (e.state as { slug?: string }).slug;
+    if (slug) openPanel(slug);
+    else closePanel();
+  });
+
+  // ================= 灯箱（Q4） =================
+  const lightbox = document.querySelector("[data-lightbox]");
+  const lbImg = document.querySelector("[data-lightbox-img]") as HTMLImageElement | null;
+  const lbCount = document.querySelector("[data-lightbox-count]");
+  let lbPhotos: { src: string; width: number; height: number }[] = [];
+  let lbIndex = 0;
+  function openLightbox(photos: { src: string; width: number; height: number }[], i: number) {
+    lbPhotos = photos; lbIndex = i;
+    lbImg.src = photos[i].src;
+    lbCount.textContent = (i + 1) + " / " + photos.length;
+    lightbox.classList.add("is-open");
+    lightbox.setAttribute("aria-hidden", "false");
+  }
+  function closeLightbox() {
+    lightbox.classList.remove("is-open");
+    lightbox.setAttribute("aria-hidden", "true");
+  }
+  function lbStep(d: number) {
+    lbIndex = (lbIndex + d + lbPhotos.length) % lbPhotos.length;
+    lbImg.src = lbPhotos[lbIndex].src;
+    lbCount.textContent = (lbIndex + 1) + " / " + lbPhotos.length;
+  }
+  document.querySelector("[data-lightbox-close]")?.addEventListener("click", closeLightbox);
+  document.querySelector("[data-lightbox-prev]")?.addEventListener("click", () => lbStep(-1));
+  document.querySelector("[data-lightbox-next]")?.addEventListener("click", () => lbStep(1));
+  lightbox?.addEventListener("click", (e) => { if (e.target === lightbox) closeLightbox(); });
+
+  // ================= 全局事件 =================
+  document.addEventListener("click", (e) => {
+    const nav = (e.target as HTMLElement).closest("[data-panel-nav]");
+    if (nav) {
+      e.preventDefault();
+      const slug = (nav as HTMLElement).getAttribute("href").split("/").pop();
+      const dir = (nav as HTMLElement).getAttribute("data-dir") as "left" | "right";
+      if (slug && currentSlug !== slug) {
+        history.replaceState({ slug }, "", "/gallery/" + slug);
+        switchPanel(slug, dir);
+      }
+      return;
+    }
+  });
+  document.querySelector("[data-panel-close]")?.addEventListener("click", () => history.back());
+  document.addEventListener("keydown", (e) => {
+    const lbOpen = lightbox?.classList.contains("is-open");
+    if (lbOpen) {
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowLeft") lbStep(-1);
+      if (e.key === "ArrowRight") lbStep(1);
+      return;
+    }
+    const panelOpen = panel?.classList.contains("is-open");
+    if (panelOpen && e.key === "Escape") history.back();
+    if (panelOpen && !isTouch) {
+      const step = () => scroller.clientHeight * 0.8;
+      if (e.key === "ArrowDown" || e.key === "PageDown") { e.preventDefault(); scroller.scrollBy({ top: step(), behavior: "smooth" }); }
+      if (e.key === "ArrowUp" || e.key === "PageUp") { e.preventDefault(); scroller.scrollBy({ top: -step(), behavior: "smooth" }); }
+      if (e.key === "Home") { e.preventDefault(); scroller.scrollTo({ top: 0, behavior: "smooth" }); }
+      if (e.key === "End") { e.preventDefault(); scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" }); }
+    }
+  });
+
+  // ================= 入场与滚动 =================
+  function playIntro() {
+    if (!timeline || cards.length === 0) return;
+    if (reduceMotion) { updateStage(); return; }
+    gsap.from(cards, { y: 70, opacity: 0, duration: 1.1, stagger: 0.06, ease: "power3.out", clearProps: "all", onComplete: updateStage });
+  }
+  window.addEventListener("app:loaded", playIntro, { once: true });
+
+  if (!isTouch && timeline) {
+    let target = timeline.scrollLeft, current = timeline.scrollLeft;
+    timeline.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      target = Math.min(timeline.scrollWidth - timeline.clientWidth, Math.max(0, target + e.deltaY + e.deltaX));
+    }, { passive: false });
+    gsap.ticker.add(() => {
+      current += (target - current) * 0.14;
+      if (Math.abs(target - current) < 0.5) current = target;
+      timeline.scrollLeft = current;
+      updateStage();
+    });
+  } else if (timeline) {
+    timeline.addEventListener("scroll", updateStage, { passive: true });
+  }
+
+  if (!isTouch && timeline) {
+    let isDown = false, startX = 0, startScroll = 0, dragged = false;
+    timeline.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      isDown = true; dragged = false;
+      startX = e.clientX; startScroll = timeline.scrollLeft;
+      timeline.classList.add("grabbing");
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!isDown) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) dragged = true;
+      const next = Math.min(timeline.scrollWidth - timeline.clientWidth, Math.max(0, startScroll - dx));
+      timeline.scrollLeft = next;
+      target = next; current = next;
+    });
+    const onUp = () => { isDown = false; timeline.classList.remove("grabbing"); };
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    cards.forEach((card) => {
+      card.addEventListener("click", (e) => {
+        if (dragged) { e.preventDefault(); e.stopPropagation(); dragged = false; return; }
+        openFromCard(e, card);
+      });
+    });
+  } else {
+    cards.forEach((card) => {
+      card.addEventListener("click", (e) => { openFromCard(e, card); });
+    });
+  }
+
+  restorePosition();
+  requestAnimationFrame(() => requestAnimationFrame(updateStage));
+</script>
