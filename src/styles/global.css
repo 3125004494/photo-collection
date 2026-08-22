@@ -1,27 +1,54 @@
 @import "tailwindcss";
 
-/* ===== 设计 token（审查 v2：统一中文无衬线体系，字重/字宽营造层次）===== */
+/* ===== 设计 token（v2.0 胶片暗房）=====
+   暖黑 ink + 银盐纸白 paper + 暗房橙红 accent（唯一强调色）
+   字体三件套：宋体 display（标题）/ 系统无衬线 body / 等宽 mono（标签·计数，胶片计数器签名）
+   全部系统字体栈，零下载成本；对比度：正文 ≥4.5:1，大字号 ≥3:1 */
 @theme {
-  --color-ink: #000000;
-  --color-paper: #ffffff;
-  /* 一套有字重与字宽变化的中文无衬线体系（系统字体，零加载成本） */
+  --color-ink: #0B0B0A;      /* 暗房暖黑（页面背景） */
+  --color-paper: #F4F0E6;    /* 银盐相纸暖白（画册面板） */
+  --color-accent: #C9612E;   /* 暗房橙红：只用于强调点，禁做正文/大面积铺色 */
+  --color-fog: #9A958B;      /* 黑底次级文字（对 ink ≈ 5.4:1） */
+  --color-ash: #57534A;      /* 纸底次级文字（对 paper ≈ 6.2:1） */
+  --color-line: #26241F;     /* 黑底 hairline 描边 */
+  --font-display: "Songti SC", "Noto Serif SC", "Source Han Serif SC", "STSong", "SimSun", Georgia, "Times New Roman", serif;
   --font-sans: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
-  --tracking-display: -0.05em;   /* 大标题紧凑字距 */
-  --tracking-label: -0.02em;     /* label 小字 */
-  --radius-card: 1.5rem;
+  --font-mono: "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+  --tracking-display: -0.03em;  /* 宋体大标题轻微紧凑（CJK 过紧会糊连） */
+  --tracking-label: 0.12em;     /* mono 标签拉字距，器材铭牌感 */
+  --radius-card: 1.25rem;
 }
 
 html, body {
-  background: #000;
+  background: var(--color-ink);
   color: #fff;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* 小字号 label（导航/辅助文字）：低调、紧凑 */
+/* 编辑式大标题：宋体衬线 + 紧凑字距（标题唯一指定字体） */
+.display-title {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-display);
+  font-weight: 600;
+}
+
+/* 胶片颗粒纹理：SVG feTurbulence data-URI，零图片资源；静态低透明度，不闪不跳 */
+.grain {
+  position: fixed;
+  inset: -100%;
+  pointer-events: none;
+  z-index: 96;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='240' height='240' filter='url(%23n)' opacity='0.6'/></svg>");
+  opacity: 0.09;
+}
+
+/* 小字号 label（导航/辅助文字）：等宽 + 字距，胶片器材铭牌感 */
 .label {
-  font-size: 0.75rem;
-  letter-spacing: var(--tracking-label);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -47,9 +74,12 @@ html, body {
   max-height: 44rem;
   will-change: transform, opacity;
 }
-/* 卡片标题（Q5）：实心白字 + 低对比→高对比的聚焦填充（保留「文字填充」签名，避免 CJK 小字号描边糊连）*/
+/* 卡片标题：宋体 + 聚焦填充；投影保证浅色照片区域衬线细节可辨 */
 .stage-title {
-  color: rgba(255, 255, 255, 0.42);
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-display);
+  color: rgba(255, 255, 255, 0.5);
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
   transition: color 0.45s ease, opacity 0.45s ease;
 }
 .stage-card.is-focus .stage-title {
@@ -111,21 +141,22 @@ html, body {
   .stage-enter { right: 1.25rem; bottom: 1.25rem; }
 }
 
-/* 底部渐变遮罩：保证任何照片背景下文字可读 */
+/* 底部渐变遮罩：保证任何照片背景下文字可读（加深至 0.72，配合宋体标题） */
 .stage-card::after {
   content: "";
   position: absolute;
   inset-inline: 0;
   bottom: 0;
   height: 45%;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), transparent);
   pointer-events: none;
 }
 /* 年份刻度标签（Q3） */
 .scale-year {
+  font-family: var(--font-mono);
   font-size: 0.625rem;
   letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.62);
   margin-inline: 0.35rem;
 }
 

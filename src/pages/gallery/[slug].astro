@@ -22,26 +22,26 @@ const seq = String(idx + 1).padStart(2, "0") + " / " + String(albums.length).pad
 ---
 <Base title={album.title + " — HAN"} nav={false}>
   <main class="fixed inset-0 z-20 overflow-hidden">
-    <div class="absolute inset-3 flex flex-col overflow-hidden rounded-3xl bg-white text-black sm:inset-6 sm:flex-row" data-sheet>
+    <div class="absolute inset-3 flex flex-col overflow-hidden rounded-3xl bg-paper text-ink sm:inset-6 sm:flex-row" data-sheet>
       <!-- 左侧信息栏 -->
       <aside class="flex shrink-0 flex-col justify-between gap-8 overflow-y-auto p-6 sm:w-80 sm:p-10">
         <div>
           <!-- 序号（小字）+ 主题（粗黑无衬线大字）+ 时间（更小更淡） -->
-          <p class="text-[0.625rem] uppercase tracking-[0.18em] text-black/35">{seq}</p>
-          <h1 class="mt-3 text-4xl font-extrabold leading-none tracking-[-0.04em] sm:text-5xl">{themeTitle}</h1>
+          <p class="font-mono text-[0.625rem] font-medium uppercase tracking-[0.14em] text-ash">{seq}</p>
+          <h1 class="display-title mt-3 text-4xl leading-none sm:text-5xl">{themeTitle}</h1>
           {
             album.date && (
-              <p class="mt-6 text-[0.625rem] uppercase tracking-[0.18em] text-black/35">{fmtDate(album.date)}</p>
+              <p class="mt-6 font-mono text-[0.625rem] font-medium uppercase tracking-[0.14em] text-ash">{fmtDate(album.date)}</p>
             )
           }
           {
             album.location && themeTitle !== album.location && (
-              <p class="mt-2 text-sm tracking-[0.04em] text-black/80">{album.location}</p>
+              <p class="mt-2 text-sm tracking-[0.04em] text-ink/80">{album.location}</p>
             )
           }
           {
             album.description && (
-              <p class="mt-8 max-w-[30rem] text-sm leading-relaxed text-black/70">{album.description}</p>
+              <p class="mt-8 max-w-[30rem] text-sm leading-relaxed text-ink/70">{album.description}</p>
             )
           }
         </div>

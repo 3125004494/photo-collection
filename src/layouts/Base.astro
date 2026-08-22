@@ -16,10 +16,18 @@ const { title = site.name, nav = true } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={site.description} />
+    <meta name="theme-color" content="#0B0B0A" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={site.name + " — 个人摄影作品集"} />
+    <meta property="og:description" content={site.bio} />
+    <!-- 部署确定域名后，把 og:image 换成绝对 URL -->
+    <meta property="og:image" content="/albums/2026-07-11/cover-1200.webp" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
   </head>
   <body class="bg-ink text-white">
+    <div class="grain" aria-hidden="true"></div>
     <Loader />
     {nav && <NavLayer />}
     {nav && <ProfileOverlay />}
