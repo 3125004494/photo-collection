@@ -11,9 +11,12 @@ import Base from "../layouts/Base.astro";
 import { albums } from "../data/albums";
 import site from "../data/site.json";
 import fs from "node:fs";
+import path from "node:path";
 
 // ---- 数据准备：精选与 Hero（albums.config.json 可覆盖）----
-const configUrl = new URL("../../albums.config.json", import.meta.url);
+// 注意：SSG 构建时 import.meta.url 会被重写指向 dist 输出目录，相对路径会解析错位
+// （曾导致 config 从未被真正读取、静默走默认值）；改用 process.cwd()（构建时 = 项目根）绝对定位
+const configUrl = path.resolve(process.cwd(), "albums.config.json");
 const config = fs.existsSync(configUrl)
   ? JSON.parse(fs.readFileSync(configUrl, "utf8"))
   : { site: {}, albums: {} };
@@ -33,6 +36,15 @@ const featuredAlbums = (featuredCandidates.length > 0 ? featuredCandidates : DEF
 // Hero：site.heroAlbum → 默认 2026-07-11 广州·南沙客运港 → 兜底最新一组（用户修改）
 const heroSlug = typeof config.site?.heroAlbum === "string" ? config.site.heroAlbum : "2026-07-11";
 const hero = albums.find((a) => a.slug === heroSlug) || albums[albums.length - 1];
+// Hero 指定照片（用户修正）：site.heroPhoto 在 heroAlbum 影集 photos 中按 src 后缀匹配，未命中回退 album.cover
+const heroPhotoName = typeof config.site?.heroPhoto === "string" ? config.site.heroPhoto : null;
+const heroPhoto =
+  heroPhotoName && Array.isArray((hero as { photos?: unknown[] }).photos)
+    ? (hero as { photos: { src: string; width: number; height: number }[] }).photos.find(
+        (p) => typeof p.src === "string" && p.src.endsWith("/" + heroPhotoName + ".webp")
+      )
+    : null;
+const heroImg = heroPhoto && heroPhoto.width && heroPhoto.height ? heroPhoto : hero.cover;
 const heroLine = site.bio.replace(/——HAN[。.]?$/, "").trim() || site.bio; // bio 提炼一句定位
 // About 尾图：site.aboutAlbum → 默认 2026-05-24 广州·长洲岛 → 兜底 hero（用户修改）
 const aboutSlug = typeof config.site?.aboutAlbum === "string" ? config.site.aboutAlbum : "2026-05-24";
@@ -69,11 +81,11 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     <section class="hero relative h-svh overflow-hidden" data-hero>
       <img
         class="hero-img absolute inset-0 h-full w-full object-cover"
-        src={hero.cover.src}
-        srcset={hero.cover.srcset}
+        src={heroImg.src}
+        srcset={heroImg.srcset}
         sizes="100vw"
-        width={hero.cover.width}
-        height={hero.cover.height}
+        width={heroImg.width}
+        height={heroImg.height}
         alt={hero.title}
         fetchpriority="high"
         decoding="async"
@@ -250,7 +262,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     <!-- ===== 4) 关于 / 页脚：尾图呼应 Hero（环形叙事） ===== -->
     <section class="relative overflow-hidden" data-about>
       <div class="absolute inset-0" data-about-img aria-hidden="true">
-        <!-- 模糊回响层：同图 blur(48px) 化入黑色背景（垫在照片与背景之间，用户修改） -->
+        <!-- 顶部薄回响层：同图 blur(32px) 只垫在上边界过渡区（用户修正） -->
         <div class="about-echo" style={"background-image:url(" + aboutTail.cover.src + ")"}></div>
         <div class="about-photo">
           <img class="h-full w-full scale-110 object-cover opacity-30 blur-2xl" src={aboutTail.cover.blur} alt="" loading="lazy" decoding="async" />
@@ -1010,23 +1022,26 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
       background: radial-gradient(120% 90% at 50% 30%, #15130f 0%, #0b0b0a 58%, #0b0b0a 100%);
     }
 
-    /* About 尾图化入背景（用户修改）：照片层底部渐隐（上 55% 不透明 → 下透明）；
-       模糊回响层垫底（transparent 40% → black），形成照片「化入」黑色背景的模糊过渡 */
+    /* About 尾图顶部过渡（用户修正）：过渡只发生在照片上边界与上方黑色背景接触处，
+       照片其余部分保持锐利清晰；顶部薄回响层（blur 32px）只垫在过渡区，不做整张 */
     .about-photo {
       position: absolute;
       inset: 0;
-      -webkit-mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 100%);
-      mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 100%);
+      mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 100%);
     }
     .about-echo {
       position: absolute;
-      inset: -8%; /* 溢出一点，避免模糊边缘生硬 */
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 14%; /* 只覆盖顶部过渡区 */
       background-size: cover;
-      background-position: center;
-      filter: blur(48px) saturate(0.85);
-      opacity: 0.6;
-      -webkit-mask-image: linear-gradient(to bottom, transparent 40%, black 100%);
-      mask-image: linear-gradient(to bottom, transparent 40%, black 100%);
+      background-position: center top;
+      filter: blur(32px) saturate(0.85);
+      opacity: 0.55;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 100%);
+      mask-image: linear-gradient(to bottom, transparent 0%, black 100%);
     }
 
     /* 呼吸段超大年份水印：mono、静态、近不可见（打破空旷但不抢焦点） */
