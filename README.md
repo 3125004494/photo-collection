@@ -24,12 +24,6 @@ npm run sync     # 内容更新：扫描 album/ → 生成多尺寸 webp/avif + 
 3. （可选）在 `albums.config.json` 为对应 slug 补 `description` / `theme` / `featured`；
 4. 运行 `npm run sync`（增量、幂等，`album/` 源图永不修改）。
 
-## 内容管线铁律
-
-- `album/` 只读：任何情况下不修改、不删除源照片；
-- 排序即时间线（文件夹名升序）；
-- `src/data/albums.generated.json` 为生成物，勿手改。
-
 ## 目录结构
 
 ```text
