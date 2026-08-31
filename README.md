@@ -53,3 +53,17 @@ docs/PRD-v2.0-*.md         重构方案与验收标准
 ## 许可证
 
 私人作品，保留所有权利。
+
+## CI/CD
+
+GitHub Actions 使用 `master` 作为生产分支：
+
+- Pull Request 指向 `master` 时运行 `npm ci`、`npm run sync` 和 `npm run build`，并保留短期 `dist/` 构建产物；
+- 推送到 `master` 时，在构建成功后自动部署到 Cloudflare Pages 项目 `photo-collection`。
+
+请在仓库的 **Settings → Secrets and variables → Actions** 中配置以下 Secrets：
+
+- `CLOUDFLARE_API_TOKEN`：Cloudflare API Token，权限限制为目标账户的 Pages 编辑权限；
+- `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 账户 ID。
+
+Token 只通过 GitHub Secrets 注入 workflow，不要写入仓库文件或命令行参数。
