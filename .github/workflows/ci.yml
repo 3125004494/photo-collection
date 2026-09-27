@@ -21,7 +21,12 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
-      - run: npm run sync
+      # 原图 album/ 不入库；CI 使用本地 sync 后提交的生成产物。
+      - name: Check generated album content
+        run: |
+          test -s src/data/albums.generated.json
+          test -d public/albums
+          test -d public/album-data
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:

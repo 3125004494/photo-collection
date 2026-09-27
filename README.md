@@ -50,14 +50,11 @@ docs/PRD-v2.0-*.md         重构方案与验收标准
 
 ## CI/CD
 
-GitHub Actions 使用 `master` 作为生产分支：
+GitHub Actions 和 Cloudflare Pages 使用 `master` 作为生产分支：
 
-- Pull Request 指向 `master` 时运行 `npm ci`、`npm run sync` 和 `npm run build`，并保留短期 `dist/` 构建产物；
-- 推送到 `master` 时，在构建成功后自动部署到 Cloudflare Pages 项目 `photo-collection`。
+- Pull Request 指向 `master` 时检查已提交的影集数据和图片产物，运行 `npm ci`、`npm run build`，并保留短期 `dist/` 构建产物；
+- 推送到 `master` 时，由已连接仓库的 Cloudflare Pages 项目 `photo-collection` 自动构建并部署；不需要额外的 GitHub Actions 部署任务或 Cloudflare API Token。
 
-请在仓库的 **Settings → Secrets and variables → Actions** 中配置以下 Secrets：
+`album/` 原图不进入 GitHub。新增或修改照片时，先在本地运行 `npm run sync`，再提交生成的 `public/albums/`、`public/album-data/` 和 `src/data/albums.generated.json`；CI 不会重新生成这些内容。
 
-- `CLOUDFLARE_API_TOKEN`：Cloudflare API Token，权限限制为目标账户的 Pages 编辑权限；
-- `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 账户 ID。
-
-Token 只通过 GitHub Secrets 注入 workflow，不要写入仓库文件或命令行参数。
+Cloudflare Pages 的 Git 集成已经绑定本仓库和 `master`；可在 Cloudflare Pages 控制台查看构建日志和生产部署状态。
