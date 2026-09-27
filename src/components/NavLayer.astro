@@ -2,12 +2,16 @@
 // 全局悬浮导航层：左上站名、右上 Profile、底部提示——低调小字，不干扰视觉（AGENTS.md §5 UI 低调原则）
 // 底部提示随指针类型切换（与放映台交互一致）：桌面「拖拽 · Shift+滚轮 横向浏览」/ 触屏「左右滑动 横向浏览」
 ---
-<div class="pointer-events-none fixed inset-0 z-40 flex flex-col justify-between px-6 py-4 text-white sm:px-10 sm:py-6">
+<div class="nav-layer pointer-events-none absolute inset-x-0 top-0 z-40 flex flex-col justify-between px-5 py-3 text-white sm:fixed sm:inset-0 sm:px-10 sm:py-6">
   <div class="flex items-start justify-between">
-    <a href="/" class="label pointer-events-auto opacity-80 transition-opacity duration-300 hover:opacity-100">HAN</a>
-    <button type="button" class="label pointer-events-auto opacity-80 transition-opacity duration-300 hover:opacity-100" data-profile-open>Profile</button>
+    <a href="/" class="label pointer-events-auto inline-flex min-h-11 items-center opacity-80 transition-opacity duration-300 hover:opacity-100">HAN</a>
+    <nav class="pointer-events-auto flex items-center gap-4 sm:hidden" aria-label="页面导航">
+      <a href="#albums" class="label inline-flex min-h-11 items-center">目录</a>
+      <a href="#about" class="label inline-flex min-h-11 items-center">关于</a>
+    </nav>
+    <button type="button" class="label pointer-events-auto hidden opacity-80 transition-opacity duration-300 hover:opacity-100 sm:inline-flex sm:min-h-11 sm:items-center" data-profile-open>Profile</button>
   </div>
-  <div class="flex justify-center sm:justify-start">
+  <div class="hidden justify-center sm:flex sm:justify-start">
     <p class="label text-fog" data-hint>拖拽 · Shift+滚轮 横向浏览</p>
   </div>
 </div>
@@ -29,3 +33,12 @@
   updateHint();
   pointerMq.addEventListener("change", updateHint);
 </script>
+
+<style>
+  @media (max-width: 639px) {
+    .nav-layer {
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+      padding-inline: max(1.25rem, env(safe-area-inset-left)) max(1.25rem, env(safe-area-inset-right));
+    }
+  }
+</style>

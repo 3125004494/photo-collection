@@ -73,3 +73,37 @@ npm run sync     # 扫描 album/ → 生成多尺寸 webp/avif + albums.generate
 
 - 见 `docs/PRD-v2.0-visual-redesign.md` 成功标准（§2）；
 - 每个 Phase 结束执行对应验收清单，通过后再进入下一 Phase。
+
+## 本轮工具编排：移动端 Figma 布局探索（2026-09-27）
+
+- **目标与范围**：仅交付可评审的 390px 首页、影集详情、灯箱 Figma 设计及 320px 窄屏检查；保留现有照片、文案、色彩与字体方向，不改网站代码、不部署。
+- **需求/调研**：读取本文件、PRD、Astro 页面、设计 token 和现有照片数据；不调用外部调研插件，现有项目资料足够。
+- **设计/规划**：使用项目级 `design-taste-frontend` 与官方 Figma `figma-create-new-file`、`figma-generate-design`、`figma-use`；输入为现有页面、照片与 token，输出为可编辑 Figma 画面及设计说明。`gsap-scrolltrigger`、`gsap-performance` 仅用于标注实现约束，不修改动效。
+- **实现**：只在 Figma 草稿文件内创建设计稿；不使用 UI 组件库、代码生成或项目依赖安装。
+- **测试/调试**：使用 Figma 截图与节点检查 390px/320px 的文字、图片、触控目标及浏览路径；Playwright、`impeccable` 留待网站实现后使用。
+- **部署/运维**：不使用 Cloudflare、Vercel 或 CI 工具，不部署。
+- **文档交付**：提供 Figma 链接与简短设计说明；README 已有用户改动，本轮不覆盖。
+- **凭据与安全边界**：只使用已连接的 Figma 账号创建独立草稿；不读取、输出或上传凭据，不提交/推送，不修改 `album/` 源照片。
+- **执行偏差**：本地浏览器启动被环境策略拦截，`figma-generate-design` 已生成捕获 ID 但无法提交网页捕获；改用官方 `upload_assets` 上传项目已有生成照片到 Figma，继续用 `figma-use` 排版，不保留临时网页捕获脚本。
+
+## 本轮工具编排：移动端页面实现（2026-09-27）
+
+- **目标与范围**：以已确认的 Figma 六画面为依据，调整首页、影集详情与灯箱的 320–639px 布局和触控路径；桌面体验、内容管线、源照片不改。
+- **需求/调研**：复用现有 PRD、Figma 稿、项目代码与历史决策；不另用外部调研插件或引入开源 UI 套件，现有 Astro/Tailwind/GSAP 足以实现。
+- **设计/规划**：使用项目级 `design-taste-frontend`、`impeccable adapt/audit` 和官方 `gsap-scrolltrigger`、`gsap-performance`；输入为现有设计 token、Figma 布局及页面，输出为明确的移动端布局和动效边界。
+- **实现**：修改 `src/pages/index.astro`、`src/pages/gallery/[slug].astro` 及必要的全局/导航样式；按模块分工，避免多人同时编辑同一文件。Figma MCP 仅作已确认设计依据，不继续写入 Figma。
+- **测试/调试**：先 `npm run build`，再用已有浏览器能力检查 320/390px 与桌面；核对溢出、照片、导航、触屏、灯箱和减少动态。没有可用浏览器时如实标出未验证项。
+- **部署/运维**：不使用 Cloudflare/Vercel/CI 工具，不部署、不提交。
+- **文档交付**：更新 README 中的移动端状态和实现说明；报告实际调用与计划未调用工具及原因。
+- **凭据与安全边界**：不触碰密钥、`album/`、未相关的 CI 与用户已有改动；不安装全局依赖，不推送。
+
+## 本轮工具编排：移动端页面部署（2026-09-27）
+
+- **目标与范围**：将已验证的移动端页面发布到现有 Cloudflare Pages 生产站点；仅包含本轮移动端代码及必要说明，不包含工作区其他改动。
+- **需求/调研**：核对 Git 远端、生产分支、Pages 连接方式和现有部署；使用仓库文档与 Cloudflare 官方能力，不扩展产品需求。
+- **设计/规划**：沿用已确认的 Figma 方案；发布前按项目规范做 Hallmark 审核，不重新设计。
+- **实现**：不改页面功能；必要时只补部署说明和本段工具编排。
+- **测试/调试**：运行构建与差异检查，发布后检查部署状态、首页、详情页和静态资源的线上响应。
+- **部署/运维**：优先使用已连接的 Cloudflare Pages 或现有 Git 集成；限定提交/推送范围，不安装全局依赖或泄露凭据。
+- **文档交付**：报告生产 URL、部署版本、验证结果和未验证项；本轮不调用 Figma MCP、Playwright 或 Vercel，设计已确认且部署目标为 Cloudflare。
+- **凭据与安全边界**：不读取或输出密钥，不修改 `album/` 原图，不覆盖 CI 工作区改动、`address.txt` 或 `方案.docx`。

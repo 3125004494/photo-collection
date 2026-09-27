@@ -47,14 +47,18 @@ const nextTheme = next
 ---
 
 <Base title={album.title + " — HAN"} nav={false}>
-  <main class="fixed inset-0 z-20 overflow-hidden">
-    <div class="absolute inset-3 flex flex-col overflow-hidden rounded-3xl bg-paper text-ink sm:inset-6 sm:flex-row" data-sheet>
+  <main class="relative z-20 min-h-screen bg-paper text-ink sm:fixed sm:inset-0 sm:overflow-hidden sm:bg-ink">
+    <header class="mobile-gallery-bar flex items-center justify-between px-5 sm:hidden">
+      <a href="/" class="inline-flex min-h-11 items-center gap-2 text-xs text-ink" aria-label="返回首页">← 返回</a>
+      <a href="/" class="display-title text-xl text-ink" aria-label="HAN 首页">HAN</a>
+    </header>
+    <div class="relative flex min-h-screen flex-col bg-paper text-ink sm:absolute sm:inset-6 sm:min-h-0 sm:flex-row sm:overflow-hidden sm:rounded-3xl" data-sheet>
       <!-- 左侧信息栏 -->
-      <aside class="flex shrink-0 flex-col justify-between gap-8 overflow-y-auto p-6 sm:w-80 sm:p-10">
+      <aside class="flex shrink-0 flex-col justify-between gap-8 px-5 pb-8 pt-6 sm:w-80 sm:overflow-y-auto sm:p-10">
         <div>
           <!-- 序号（小字）+ 主题（宋体大字）+ 日期区间（mono 小字）+ 地点（AT 前缀） -->
           <p class="font-mono text-[0.625rem] font-medium uppercase leading-relaxed tracking-[0.14em] text-ash">{seq}</p>
-          <h1 class="display-title mt-3 text-4xl leading-none sm:text-5xl">{heading}</h1>
+          <h1 class="display-title mt-3 break-words text-4xl leading-tight sm:text-5xl sm:leading-none">{heading}</h1>
           {
             dateLabel && (
               <p class="mt-6 font-mono text-[0.625rem] font-medium uppercase leading-relaxed tracking-[0.14em] text-ash">{dateLabel}</p>
@@ -71,7 +75,7 @@ const nextTheme = next
             )
           }
         </div>
-        <div>
+        <div class="hidden sm:block">
           <!-- 浏览进度 N/M（滚动驱动，等宽数字防跳位） -->
           <p class="progress-num font-mono text-[0.625rem] font-medium uppercase leading-relaxed tracking-[0.14em] text-ash">
             <span data-progress-cur>01</span> / {photoCount}
@@ -84,14 +88,15 @@ const nextTheme = next
       </aside>
 
       <!-- 右侧图片流：横图段落转场 / 竖图停顿 -->
-      <div class="flex-1 overflow-y-auto px-4 py-10 sm:px-10" data-scroller tabindex="0" role="region" aria-label="照片列表（可滚动）">
+      <div class="min-w-0 flex-1 px-5 pb-10 sm:overflow-y-auto sm:px-10 sm:py-10" data-scroller tabindex="0" role="region" aria-label="照片列表">
+        <p class="mb-3 font-mono text-[0.625rem] font-medium uppercase text-ash sm:hidden">01 / {photoCount} PHOTOS</p>
         <div class="mx-auto flex max-w-[56rem] flex-col" data-photos>
           {
             album.photos.map((p, i) => {
               const isPortrait = p.width < p.height;
               const cls = "gallery-figure" + (isPortrait ? " gallery-figure--tall" : " gallery-figure--wide");
               return (
-                <figure class={cls} data-figure>
+                <figure class={cls} data-figure tabindex="0" role="button" aria-label={"查看第 " + (i + 1) + " 张照片"}>
                   <!-- 相纸相框：hairline 描边 + 极淡投影 + 裁切视差余量（边框不随 img 缩放被裁掉） -->
                   <div class="gallery-frame">
                     {
@@ -123,7 +128,7 @@ const nextTheme = next
           }
 
           <!-- 末尾 CTA：下一组（无下一组时回到首页） -->
-          <div class="py-20 text-center" data-cta>
+          <div class="py-16 text-center sm:py-20" data-cta>
             {
               next ? (
                 <a href={"/gallery/" + next.slug} data-nav data-dir="left" class="group inline-flex flex-col items-center gap-4">
@@ -143,11 +148,40 @@ const nextTheme = next
     </div>
 
     <!-- 右上角关闭按钮（返回首页） -->
-    <a href="/" class="circle-btn absolute right-4 top-4 z-10 sm:right-[26px] sm:top-[26px]" aria-label="关闭并返回首页" data-close>
+    <a href="/" class="circle-btn gallery-desktop-close absolute right-4 top-4 z-10 sm:right-[26px] sm:top-[26px]" aria-label="关闭并返回首页" data-close>
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.5"/></svg>
     </a>
   </main>
+  <div class="detail-lightbox" data-lightbox role="dialog" aria-modal="true" aria-label="照片大图" aria-hidden="true" inert>
+    <button class="detail-lightbox-close" type="button" data-lightbox-close aria-label="关闭大图">×</button>
+    <img data-lightbox-img alt="" decoding="async" />
+    <div class="detail-lightbox-controls">
+      <button type="button" data-lightbox-prev aria-label="上一张照片">←</button>
+      <span data-lightbox-count aria-live="polite"></span>
+      <button type="button" data-lightbox-next aria-label="下一张照片">→</button>
+    </div>
+  </div>
 </Base>
+
+<style>
+  .mobile-gallery-bar { min-height: calc(4rem + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent); }
+  .gallery-desktop-close { display: none; }
+  @media (min-width: 640px) { .gallery-desktop-close { display: flex; } }
+  :global(html.detail-lightbox-open), :global(body.detail-lightbox-open) { overflow: hidden; }
+  [data-figure] { cursor: zoom-in; }
+  [data-figure]:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 4px; }
+  .detail-lightbox { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; background: var(--color-ink); color: var(--color-paper); }
+  .detail-lightbox.is-open { display: flex; }
+  .detail-lightbox img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+  .detail-lightbox button { min-width: 44px; min-height: 44px; color: inherit; font-size: 1.5rem; }
+  .detail-lightbox button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  .detail-lightbox-close { position: absolute; top: max(1rem, env(safe-area-inset-top)); right: 1rem; z-index: 1; }
+  .detail-lightbox-controls { position: absolute; right: 1rem; bottom: max(1rem, env(safe-area-inset-bottom)); left: 1rem; display: flex; align-items: center; justify-content: space-between; font: 0.75rem monospace; }
+  @media (max-width: 639px) {
+    [data-figure] { width: 100%; margin-block: 0 2.5rem; }
+    [data-figure] :global(img.gallery-img) { max-height: none; }
+  }
+</style>
 
 <script>
   import { gsap } from "gsap";
@@ -160,13 +194,14 @@ const nextTheme = next
   const photosCol = document.querySelector("[data-photos]");
   const figures = Array.from(document.querySelectorAll("[data-figure]"));
   const progressCur = document.querySelector("[data-progress-cur]");
+  const desktop = window.matchMedia("(min-width: 640px)");
 
   // ---- 1) 画册面板入场（app:loaded 后播；3.5s 兜底防事件丢失） ----
   let introPlayed = false;
   function playIntro() {
     if (introPlayed) return;
     introPlayed = true;
-    if (sheet && !reduceMotion) {
+    if (sheet && desktop.matches && !reduceMotion) {
       gsap.from(sheet, { y: 56, opacity: 0, duration: 0.7, ease: "power3.out" });
     }
   }
@@ -175,7 +210,7 @@ const nextTheme = next
 
   // ---- 2) 图片揭示 + 单层视差（matchMedia 包裹；减少动态用户看到完整静态内容） ----
   const mm = gsap.matchMedia();
-  mm.add("(prefers-reduced-motion: no-preference)", () => {
+  mm.add("(min-width: 640px) and (prefers-reduced-motion: no-preference)", () => {
     if (!scroller) return;
     figures.forEach((fig, i) => {
       const img = fig.querySelector("img.gallery-img");
@@ -222,7 +257,7 @@ const nextTheme = next
 
   // ---- 3) 浏览进度 N/M（滚动驱动；ScrollTrigger onUpdate 自带 rAF 节流；变更才写 DOM） ----
   let progressTrigger: { kill: () => void } | null = null;
-  if (scroller && photosCol && progressCur && figures.length > 1) {
+  if (desktop.matches && scroller && photosCol && progressCur && figures.length > 1) {
     const lastFig = figures[figures.length - 1];
     const total = figures.length;
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -266,7 +301,78 @@ const nextTheme = next
         e.preventDefault(); scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" }); break;
     }
   };
-  scroller?.addEventListener("keydown", keyHandler);
+  if (desktop.matches) scroller?.addEventListener("keydown", keyHandler);
+
+  // 手机端保持原生页面滚动；灯箱独立于桌面画册的滚动容器。
+  const lightbox = document.querySelector<HTMLElement>("[data-lightbox]");
+  const lightboxImg = document.querySelector<HTMLImageElement>("[data-lightbox-img]");
+  const lightboxCount = document.querySelector<HTMLElement>("[data-lightbox-count]");
+  const lightboxClose = document.querySelector<HTMLButtonElement>("[data-lightbox-close]");
+  const lightboxPrev = document.querySelector<HTMLButtonElement>("[data-lightbox-prev]");
+  const lightboxNext = document.querySelector<HTMLButtonElement>("[data-lightbox-next]");
+  let activePhoto = 0;
+  let returnFocus: HTMLElement | null = null;
+  const updateLightbox = () => {
+    const photo = figures[activePhoto]?.querySelector<HTMLImageElement>(".gallery-img");
+    if (!photo || !lightboxImg || !lightboxCount) return;
+    lightboxImg.src = photo.currentSrc || photo.src;
+    lightboxImg.alt = photo.alt;
+    lightboxCount.textContent = `${String(activePhoto + 1).padStart(2, "0")} / ${String(figures.length).padStart(2, "0")}`;
+    if (lightboxPrev) lightboxPrev.disabled = activePhoto === 0;
+    if (lightboxNext) lightboxNext.disabled = activePhoto === figures.length - 1;
+  };
+  const openLightbox = (index: number, trigger: HTMLElement) => {
+    if (!lightbox || !lightboxImg) return;
+    activePhoto = index;
+    returnFocus = trigger;
+    updateLightbox();
+    lightbox.inert = false;
+    lightbox.setAttribute("aria-hidden", "false");
+    lightbox.classList.add("is-open");
+    document.documentElement.classList.add("detail-lightbox-open");
+    document.body.classList.add("detail-lightbox-open");
+    lightboxClose?.focus();
+  };
+  const closeLightbox = () => {
+    if (!lightbox || !lightboxImg) return;
+    lightbox.classList.remove("is-open");
+    lightbox.setAttribute("aria-hidden", "true");
+    lightbox.inert = true;
+    lightboxImg.removeAttribute("src");
+    document.documentElement.classList.remove("detail-lightbox-open");
+    document.body.classList.remove("detail-lightbox-open");
+    returnFocus?.focus();
+  };
+  const stepLightbox = (step: number) => {
+    activePhoto = Math.max(0, Math.min(figures.length - 1, activePhoto + step));
+    updateLightbox();
+  };
+  figures.forEach((figure, index) => {
+    figure.addEventListener("click", () => openLightbox(index, figure as HTMLElement));
+    figure.addEventListener("keydown", (event) => {
+      if (event instanceof KeyboardEvent && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        openLightbox(index, figure as HTMLElement);
+      }
+    });
+  });
+  lightboxClose?.addEventListener("click", closeLightbox);
+  lightboxPrev?.addEventListener("click", () => stepLightbox(-1));
+  lightboxNext?.addEventListener("click", () => stepLightbox(1));
+  lightbox?.addEventListener("click", (event) => { if (event.target === lightbox) closeLightbox(); });
+  const lightboxKeys = (event: KeyboardEvent) => {
+    if (!lightbox?.classList.contains("is-open")) return;
+    if (event.key === "Escape") closeLightbox();
+    if (event.key === "ArrowLeft") stepLightbox(-1);
+    if (event.key === "ArrowRight") stepLightbox(1);
+    if (event.key === "Tab") {
+      const controls = [lightboxClose, lightboxPrev, lightboxNext].filter((el): el is HTMLButtonElement => !!el && !el.disabled);
+      const current = controls.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.shiftKey && current <= 0) { event.preventDefault(); controls.at(-1)?.focus(); }
+      else if (!event.shiftKey && current === controls.length - 1) { event.preventDefault(); controls[0]?.focus(); }
+    }
+  };
+  document.addEventListener("keydown", lightboxKeys);
 
   // ---- 5) 前后切换 / 关闭 / CTA：GSAP 过渡后跳转 ----
   function go(url: string, dir: "left" | "right" | "up") {
@@ -296,12 +402,14 @@ const nextTheme = next
 
   // ---- 6) 动画资源清理（AGENTS.md） ----
   function cleanup() {
+    closeLightbox();
     mm.revert();
     progressTrigger?.kill();
     ScrollTrigger.getAll().forEach((t) => t.kill());
     cancelAnimationFrame(refreshRaf);
     scroller?.removeEventListener("keydown", keyHandler);
     scroller?.removeEventListener("load", imgLoadHandler, true);
+    document.removeEventListener("keydown", lightboxKeys);
   }
   window.addEventListener("pagehide", cleanup, { once: true });
   window.addEventListener("beforeunload", cleanup, { once: true });

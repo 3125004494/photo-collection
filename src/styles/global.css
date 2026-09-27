@@ -244,8 +244,9 @@ html, body {
 @media (max-width: 639px) {
   .gallery-figure { margin-block: 2.75rem; }
   .gallery-figure--wide { width: 100%; margin-block: 3.25rem; }
-  .gallery-figure--tall { width: 85%; margin-block: 3.25rem; margin-left: auto; margin-right: 0; }
-  .gallery-figure--tall img { max-height: 86vh; }
+  .gallery-figure--tall { width: 100%; margin-block: 3.25rem; margin-left: 0; margin-right: 0; }
+  .gallery-figure--tall img { max-height: 86svh; }
+  .circle-btn { min-width: 2.75rem; min-height: 2.75rem; }
 }
 
 /* 键盘焦点可见（P1-2）：currentColor 让黑底白字/白底黑字都可见 */

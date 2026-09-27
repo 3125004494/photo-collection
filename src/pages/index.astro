@@ -173,7 +173,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     </div>
 
     <!-- ===== 3) 放映台索引：全部影集（保留拖拽/滚轮/焦点缩放/年份刻度交互） ===== -->
-    <section class="relative h-svh" data-index-section>
+    <section id="albums" class="relative h-svh" data-index-section>
       <header class="flex items-end justify-between gap-6 px-6 pt-24 sm:px-10" data-index-head>
         <div>
           <p class="label text-fog">索引 · Index</p>
@@ -199,13 +199,14 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
               data-slug={a.slug}
               style={"aspect-ratio:" + a.cover.width + "/" + a.cover.height}
             >
+              <span class="mobile-stage-number" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
               <img
                 src={a.cover.src}
                 srcset={a.cover.srcset}
-                sizes={stageCardSize(a)}
+                sizes={"(max-width: 639px) 72px, " + stageCardSize(a)}
                 width={a.cover.width}
                 height={a.cover.height}
-                loading={i === 0 ? "eager" : "lazy"}
+                loading="lazy"
                 decoding="async"
                 alt={a.title}
                 draggable={false}
@@ -260,7 +261,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     </section>
 
     <!-- ===== 4) 关于 / 页脚：尾图呼应 Hero（环形叙事） ===== -->
-    <section class="relative overflow-hidden" data-about>
+    <section id="about" class="relative overflow-hidden" data-about>
       <div class="absolute inset-0" data-about-img aria-hidden="true">
         <!-- 顶部薄回响层：同图 blur(32px) 只垫在上边界过渡区（用户修正） -->
         <div class="about-echo" style={"background-image:url(" + aboutTail.cover.src + ")"}></div>
@@ -333,6 +334,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const isTouch = window.matchMedia("(pointer: coarse)").matches;
+    const isMobile = window.matchMedia("(max-width: 639px)").matches;
 
     // 从数据块读取（module 脚本，defer 执行，数据块在前）
     const albums = JSON.parse(document.getElementById("albums-data").textContent);
@@ -343,7 +345,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
 
     // ================= 放映台焦点（焦点缩放） =================
     function updateStage() {
-      if (!timeline) return;
+      if (!timeline || isMobile) return;
       const cx = timeline.clientWidth / 2;
       let nearest = 0;
       let nearestD = Infinity;
@@ -366,7 +368,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     }
 
     function centerFirst() {
-      if (!timeline || cards.length === 0) return;
+      if (!timeline || isMobile || cards.length === 0) return;
       const first = cards[0];
       const w = first.getBoundingClientRect().width;
       timeline.scrollLeft = first.offsetLeft - (timeline.clientWidth - w) / 2;
@@ -374,6 +376,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     }
     function restorePosition() {
       const saved = sessionStorage.getItem("pc-pos");
+      if (isMobile) return;
       if (saved && timeline && timeline.scrollWidth > Number(saved)) timeline.scrollLeft = Number(saved);
       else centerFirst();
     }
@@ -389,7 +392,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     let wheelCurrent = wheelTarget;
     const clampX = (v: number) =>
       Math.min((timeline?.scrollWidth ?? 0) - (timeline?.clientWidth ?? 0), Math.max(0, v));
-    if (!isTouch && timeline) {
+    if (!isTouch && !isMobile && timeline) {
       wheelTick = () => {
         // 静止帧直接跳过（红旗修复）：lerp 收敛后不再每帧跑 updateStage 与写 scrollLeft
         if (Math.abs(wheelTarget - wheelCurrent) < 0.5) return;
@@ -414,13 +417,13 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
         wheelTarget = clampX(wheelTarget + (e.deltaY + e.deltaX));
       };
       timeline.addEventListener("wheel", shiftWheelHandler, { passive: false });
-    } else if (timeline) {
+    } else if (!isMobile && timeline) {
       timeline.addEventListener("scroll", updateStage, { passive: true });
     }
 
     // ================= 左右箭头（Phase 5b：键盘可聚焦；桌面驱动 lerp target，触屏原生 smooth 滚动） =================
     const nudgeCards = (dir: number) => {
-      if (!timeline || cards.length === 0) return;
+      if (!timeline || isMobile || cards.length === 0) return;
       const w = cards[0].getBoundingClientRect().width;
       const gap = parseFloat(getComputedStyle(timeline).columnGap || "0") || 0;
       wheelTarget = clampX(wheelTarget + dir * (w + gap)); // 每次移动约一个卡位
@@ -467,7 +470,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     // 页面纵向滚动时隐藏跟手提示（滚轮不再横向劫持后，卡片会随页面移出指针下方）
     const onPageScroll = () => peek?.classList.remove("is-on");
     window.addEventListener("scroll", onPageScroll, { passive: true });
-    if (!isTouch && timeline && peek) {
+    if (!isTouch && !isMobile && timeline && peek) {
       if (!reduceMotion) {
         // quickTo：高频指针事件下无堆积的平滑跟随（性能优于每次新建 tween）
         peekX = gsap.quickTo(peek, "x", { duration: 0.3, ease: "power3.out" });
@@ -481,7 +484,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     }
 
     // ================= 拖拽 =================
-    if (!isTouch && timeline) {
+    if (!isTouch && !isMobile && timeline) {
       let isDown = false;
       let startX = 0;
       let startScroll = 0;
@@ -526,7 +529,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
           openFromCard(e, card);
         });
       });
-    } else {
+    } else if (!isMobile) {
       cards.forEach((card) => {
         card.addEventListener("click", (e) => {
           openFromCard(e, card);
@@ -665,8 +668,10 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
       }
     }
 
+    let panelTransition = 0;
     function openPanel(slug: string) {
       if (!panel) return;
+      panelTransition++;
       renderPanel(slug);
       panel.classList.add("is-open");
       panel.setAttribute("aria-hidden", "false");
@@ -679,7 +684,10 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     }
     function closePanel() {
       if (!panel || !panel.classList.contains("is-open")) return;
+      const transition = ++panelTransition;
       const done = () => {
+        if (transition !== panelTransition || !panel.classList.contains("is-open")) return;
+        gsap.killTweensOf(sheet);
         panel.classList.remove("is-open");
         panel.setAttribute("aria-hidden", "true");
         observer?.disconnect();
@@ -691,6 +699,8 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
       }
       gsap.to(backdrop, { opacity: 0, duration: 0.3 });
       gsap.to(sheet, { y: 32, opacity: 0, duration: 0.32, ease: "power2.in", onComplete: done });
+      // 后台标签页的 rAF 可能被节流；不能让关闭状态依赖动画帧完成。
+      window.setTimeout(done, 500);
     }
     function switchPanel(slug: string, dir: "left" | "right") {
       if (!sheet || reduceMotion) {
@@ -806,21 +816,23 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     // ================= 动效（matchMedia 包裹；减少动态用户不进入，看到完整静态内容） =================
     const mm = gsap.matchMedia();
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      // ---- Hero 入场（app:loaded 后播；4s 兜底防事件丢失） ----
-      const heroImg = document.querySelector(".hero-img");
-      const heroKids = document.querySelectorAll("[data-hero-label], [data-hero-title], [data-hero-line], [data-hero-hint]");
-      let heroPlayed = false;
-      const playHero = () => {
-        if (heroPlayed || !heroImg) return;
-        heroPlayed = true;
-        gsap.fromTo(heroImg, { autoAlpha: 0, scale: 1.06 }, { autoAlpha: 1, scale: 1, duration: 1.5, ease: "power3.out" });
-        gsap.fromTo(heroKids, { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: 1.0, stagger: 0.12, ease: "power2.out", delay: 0.3 });
-      };
-      window.addEventListener("app:loaded", playHero, { once: true });
-      setTimeout(playHero, 4000);
+      // 手机上首屏保持静态可见，避免 Loader 结束后再次从透明状态入场。
+      if (!isMobile) {
+        const heroImg = document.querySelector(".hero-img");
+        const heroKids = document.querySelectorAll("[data-hero-label], [data-hero-title], [data-hero-line], [data-hero-hint]");
+        let heroPlayed = false;
+        const playHero = () => {
+          if (heroPlayed || !heroImg) return;
+          heroPlayed = true;
+          gsap.fromTo(heroImg, { autoAlpha: 0, scale: 1.06 }, { autoAlpha: 1, scale: 1, duration: 1.5, ease: "power3.out" });
+          gsap.fromTo(heroKids, { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: 1.0, stagger: 0.12, ease: "power2.out", delay: 0.3 });
+        };
+        window.addEventListener("app:loaded", playHero, { once: true });
+        setTimeout(playHero, 4000);
+      }
 
       // ---- 精选章节 ×2：pin + scrub（只动画子元素：clip-path 揭示 / 单层视差 / 横向漂移） ----
-      document.querySelectorAll("[data-chapter]").forEach((section) => {
+      if (!isMobile) document.querySelectorAll("[data-chapter]").forEach((section) => {
         const stage = section.querySelector("[data-stage]");
         const strip = section.querySelector("[data-strip]");
         const photos = section.querySelectorAll("[data-photo]");
@@ -853,7 +865,7 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
       });
 
       // ---- 索引区入场：头部 + 卡片 stagger（once，不 pin） ----
-      ScrollTrigger.create({
+      if (!isMobile) ScrollTrigger.create({
         trigger: "[data-index-section]",
         start: "top 70%",
         once: true,
@@ -924,10 +936,147 @@ const breathYears = featuredAlbums.map((a) => yearOf(a.date));
     // 恢复的滚动位置与滚轮 lerp 同步，避免首次滚轮时时间线跳回
     wheelTarget = timeline ? timeline.scrollLeft : 0;
     wheelCurrent = wheelTarget;
-    requestAnimationFrame(() => requestAnimationFrame(updateStage));
+    if (!isMobile) requestAnimationFrame(() => requestAnimationFrame(updateStage));
   </script>
 
   <style>
+    .mobile-stage-number { display: none; }
+
+    @media (max-width: 639px) {
+      .hero { height: 88svh; }
+      .hero-img { object-position: 54% center; }
+      .hero > div:nth-of-type(2) { width: 100%; }
+      .hero [data-hero-title] { font-size: 5rem; }
+      .hero [data-hero-line] { max-width: 17rem; font-size: 0.875rem; }
+      .hero [data-hero-meta] { max-width: 18rem; line-height: 1.7; }
+      .hero [data-hero-hint] { bottom: 1.5rem; }
+
+      .breath { display: none; }
+      .chapter { padding: 4.5rem 0 1rem; }
+      .chapter .chapter-stage {
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        overflow: visible;
+      }
+      .chapter .chapter-stage::after { display: none; }
+      .chapter .chapter-meta {
+        position: static;
+        width: auto;
+        padding: 0 1.5rem 1.75rem;
+      }
+      .chapter .chapter-meta h2 { font-size: 2.75rem; line-height: 1.12; }
+      .chapter .chapter-meta p { max-width: 100%; }
+      .chapter .chapter-meta a { min-height: 2.75rem; display: inline-flex; align-items: center; }
+      .chapter .chapter-strip {
+        display: block;
+        width: 100%;
+        height: auto;
+        padding: 0 1.5rem;
+        transform: none;
+      }
+      .chapter .chapter-photo,
+      .chapter .chapter-photo:nth-child(n) {
+        width: 100%;
+        height: auto;
+        max-height: 32rem;
+        margin: 0;
+      }
+      .chapter .chapter-photo:not(:first-child) { display: none; }
+      .chapter .chapter-img { opacity: 1; transform: none; }
+
+      [data-index-section] { height: auto; padding: 4.5rem 1.5rem 5rem; }
+      [data-index-head] { display: block; padding: 0 0 1.5rem; }
+      [data-index-head] > div:last-child { align-items: flex-start; margin-top: 0.75rem; }
+      [data-index-head] h2 { font-size: 2.75rem; }
+      .timeline-hint { display: none; }
+      .timeline {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        height: auto;
+        margin: 0;
+        padding: 0;
+        overflow: visible;
+        cursor: auto;
+        user-select: auto;
+      }
+      .timeline .stage-card {
+        display: grid;
+        grid-template-columns: 1.5rem minmax(0, 1fr) 2.75rem;
+        grid-template-rows: 1fr 1fr;
+        align-items: center;
+        column-gap: 0.75rem;
+        width: 100%;
+        height: 6.25rem;
+        max-height: none;
+        aspect-ratio: auto !important;
+        padding: 0.75rem 0;
+        border-top: 1px solid var(--color-fog);
+        overflow: visible;
+        will-change: auto;
+      }
+      .timeline .stage-card:last-child { border-bottom: 1px solid var(--color-fog); }
+      .timeline .stage-card::after { display: none; }
+      .mobile-stage-number {
+        display: block;
+        grid-column: 1;
+        grid-row: 1 / 3;
+        color: var(--color-fog);
+        font: 0.625rem var(--font-mono);
+      }
+      .timeline .stage-card > img {
+        display: none;
+      }
+      .timeline .stage-title,
+      .timeline .stage-date {
+        position: static;
+        width: auto;
+        padding: 0;
+        text-align: left;
+        transform: none;
+        translate: none;
+        white-space: normal;
+        text-shadow: none;
+      }
+      .timeline .stage-title {
+        grid-column: 2;
+        grid-row: 1;
+        align-self: end;
+        color: var(--color-paper);
+        font-size: 1rem;
+        line-height: 1.35;
+      }
+      .timeline .stage-date {
+        grid-column: 2;
+        grid-row: 2;
+        align-self: start;
+        margin-top: 0.25rem;
+        color: var(--color-fog);
+        font-size: 0.625rem;
+      }
+      .timeline .stage-enter {
+        position: static;
+        grid-column: 3;
+        grid-row: 1 / 3;
+        justify-self: end;
+        width: 2.75rem;
+        height: 2.75rem;
+        transform: none;
+        opacity: 1;
+      }
+      [data-scale], [data-index-section] .timeline-arrow, .stage-peek { display: none; }
+
+      [data-about] [data-about-copy] {
+        min-height: 78svh;
+        padding: 6rem 1.5rem 5rem;
+      }
+      [data-about-copy] h2 { font-size: 2.4rem; }
+      [data-about-copy] p, [data-about-copy] a { max-width: 100%; overflow-wrap: anywhere; }
+    }
+
     /* ===== Phase 3 视觉复审修复（scoped，仅本页生效；禁止动 global.css，避免与 t3 冲突）===== */
 
     /* Hero 文字投影：保证浅色照片上可读（h1 标题除外，保持原样不动） */
